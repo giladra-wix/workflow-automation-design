@@ -1,0 +1,1447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflow Automation Platform Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column with a sticky section index on wide screens; Trigger/Decision/Action color-coding carries through the whole page */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --fg:#161a22; --muted:#5a6272; --line:#dde1e8;
+  --accent:#2f55d4; --accent-soft:#e7ecfb;
+  --trigger:#b86a00; --trigger-soft:#fbf0de;
+  --decision:#7a3fc4; --decision-soft:#f1e9fb;
+  --action:#1d8a5a; --action-soft:#e2f4ea;
+  --code-bg:#eef0f4;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1218; --surface:#161b24; --fg:#e6e9ef; --muted:#9aa3b4; --line:#2a313d;
+    --accent:#7d9bff; --accent-soft:#1d2645;
+    --trigger:#f0a640; --trigger-soft:#33260f;
+    --decision:#b88cf5; --decision-soft:#2a1d40;
+    --action:#4fcf92; --action-soft:#12301f;
+    --code-bg:#1b212c; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1218; --surface:#161b24; --fg:#e6e9ef; --muted:#9aa3b4; --line:#2a313d;
+  --accent:#7d9bff; --accent-soft:#1d2645;
+  --trigger:#f0a640; --trigger-soft:#33260f;
+  --decision:#b88cf5; --decision-soft:#2a1d40;
+  --action:#4fcf92; --action-soft:#12301f;
+  --code-bg:#1b212c; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6;padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr)}nav.toc{display:none}}
+header.hero{max-width:1080px;margin:0 auto;padding-block:56px 32px;border-bottom:1px solid var(--line);margin-bottom:40px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(32px,5vw,52px);line-height:1.05;margin:10px 0 16px;text-wrap:balance;letter-spacing:-.01em}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-family:var(--f-mono);font-size:13px}
+.chip{padding:4px 10px;border-radius:999px;font-weight:500;white-space:nowrap}
+.chip.t{background:var(--trigger-soft);color:var(--trigger)}
+.chip.d{background:var(--decision-soft);color:var(--decision)}
+.chip.a{background:var(--action-soft);color:var(--action)}
+.arrow{color:var(--muted)}
+.lede{max-width:65ch;color:var(--muted);font-size:17px;margin:18px 0 0}
+nav.toc{position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;font-size:14px}
+nav.toc ol{list-style:none;padding:0;margin:0;display:grid;gap:6px;counter-reset:s}
+nav.toc a{color:var(--muted);text-decoration:none;display:flex;gap:8px}
+nav.toc a::before{counter-increment:s;content:counter(s);font-family:var(--f-mono);font-size:12px;color:var(--accent);min-width:16px;padding-top:2px}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--fg)}
+main{min-width:0;display:grid;gap:56px}
+section{min-width:0;scroll-margin-top:24px}
+h2{font-family:var(--f-display);font-weight:700;font-size:26px;line-height:1.2;margin:0 0 16px;text-wrap:balance}
+h3{font-size:17px;font-weight:600;margin:24px 0 8px}
+p,li{max-width:68ch}
+ul{padding-left:20px;margin:8px 0}
+li{margin:4px 0}
+code{font-family:var(--f-mono);font-size:.86em;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+pre.code{font-family:var(--f-mono);font-size:13px;line-height:1.55;background:var(--code-bg);padding:16px;border-radius:8px;overflow-x:auto;margin:12px 0}
+pre.code code{background:none;padding:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:12px}
+.req{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.req h3{margin-top:0}
+.req ul{margin:0}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto}
+.planes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px}
+.plane{border-top:3px solid var(--accent);padding-top:10px}
+.plane strong{display:block;font-size:14px}
+.plane span{color:var(--muted);font-size:14px}
+.tbl{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+.kind{display:inline-block;font-family:var(--f-mono);font-size:12px;padding:2px 8px;border-radius:999px}
+.steps{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:10px;counter-reset:w}
+.steps li{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;max-width:none}
+.steps li::before{counter-increment:w;content:counter(w);font-family:var(--f-mono);font-size:13px;width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
+.steps li.fail::before{content:"!";background:var(--trigger-soft);color:var(--trigger)}
+.trade{display:grid;gap:12px;margin-top:12px}
+.trade div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+.trade b{display:block;margin-bottom:4px}
+.rec{font-size:13px;font-family:var(--f-mono);color:var(--accent)}
+.nums{display:flex;flex-wrap:wrap;gap:24px;margin-top:8px;font-variant-numeric:tabular-nums}
+.nums div{display:grid}
+.nums b{font-family:var(--f-display);font-size:28px;line-height:1.1}
+.nums span{font-size:13px;color:var(--muted)}
+a{color:var(--accent)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+html{scroll-behavior:smooth}
+svg.arch{display:block;min-width:720px;width:100%;height:auto;font-family:var(--f-body)}
+.arch .plane-bg{fill:none;stroke:var(--line);stroke-width:1.5}
+.arch .plane-lbl{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;fill:var(--muted)}
+.arch .box{stroke-width:1.5}
+.arch .n{fill:var(--surface);stroke:var(--line)}
+.arch .t{fill:var(--trigger-soft);stroke:var(--trigger)}
+.arch .x{fill:var(--action-soft);stroke:var(--action)}
+.arch .d{fill:var(--decision-soft);stroke:var(--decision)}
+.arch .b{fill:var(--accent-soft);stroke:var(--accent)}
+.arch .ext{fill:none;stroke:var(--muted);stroke-dasharray:5 4}
+.arch .ttl{font-size:14px;font-weight:600;fill:var(--fg)}
+.arch .sub{font-size:11.5px;fill:var(--muted)}
+.arch .ln{stroke:var(--muted);stroke-width:1.5;fill:none}
+.arch .dash{stroke-dasharray:4 4}
+.arch .note{font-size:11px;fill:var(--muted);font-style:italic}
+.arch .s{fill:var(--code-bg);stroke:var(--line)}
+.arch .q{fill:var(--surface);stroke:var(--accent)}
+.arch .sm{font-size:12.5px;font-weight:600;fill:var(--fg)}
+svg.arch.big{min-width:960px}
+@media (min-width:861px){.diagram.wide{width:calc(100% + 248px);margin-left:-248px;position:relative;z-index:1}.diagram.wide svg.arch.big{min-width:0}}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:12px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;border:1.5px solid;display:inline-block}
+.sw.t{background:var(--trigger-soft);border-color:var(--trigger)}
+.sw.b{background:var(--accent-soft);border-color:var(--accent)}
+.sw.d{background:var(--decision-soft);border-color:var(--decision)}
+.sw.x{background:var(--action-soft);border-color:var(--action)}
+.sw.s{background:var(--code-bg);border-color:var(--line)}
+.arch .ent{font-family:var(--f-mono);font-size:14px;font-weight:500;fill:var(--fg)}
+.arch .fld{font-family:var(--f-mono);font-size:12px;fill:var(--fg)}
+.arch .key{font-family:var(--f-mono);font-size:10.5px;font-weight:500;fill:var(--accent)}
+.arch .typ{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+.arch .card{font-family:var(--f-mono);font-size:12px;fill:var(--muted)}
+svg.arch.er{min-width:900px}
+@media (min-width:861px){.diagram.wide svg.arch.er{min-width:0}}
+.cap{font-size:13px;color:var(--muted);margin-top:8px}
+.st{display:inline-block;font-family:var(--f-mono);font-size:12px;padding:1px 7px;border-radius:999px;background:var(--code-bg);color:var(--muted);margin:2px 2px 2px 0}
+.st.ok{background:var(--action-soft);color:var(--action)}
+.st.warn{background:var(--trigger-soft);color:var(--trigger)}
+.st.bad{background:var(--decision-soft);color:var(--decision)}
+svg.arch.tr{min-width:900px}
+@media (min-width:861px){.diagram.wide svg.arch.tr{min-width:0}}
+svg.arch.ag{min-width:760px}
+.arch .life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:3 4}
+.arch .msg{stroke:var(--muted);stroke-width:1.4;fill:none}
+.arch .msg.ret{stroke-dasharray:5 4}
+.arch .ml{font-size:12px;fill:var(--fg);paint-order:stroke;stroke:var(--surface);stroke-width:5px;stroke-linejoin:round}
+.arch .ph{font-size:13px;font-weight:600;fill:var(--fg)}
+.arch .snote{fill:var(--accent-soft);stroke:none}
+.arch .nt{font-size:12px;fill:var(--fg)}
+svg.arch.seq{min-width:900px}
+@media (min-width:861px){.diagram.wide svg.arch.seq{min-width:0}}
+</style>
+</head>
+<body class="auto">
+
+<header class="hero">
+  <div class="eyebrow">System design · high-level architecture</div>
+  <h1>Workflow Automation Platform</h1>
+  <div class="flow" aria-label="Example workflow">
+    <span class="chip t">Salesforce: New Lead</span><span class="arrow">→</span>
+    <span class="chip d">Lead Score &gt; 80</span><span class="arrow">→</span>
+    <span class="chip a">WhatsApp: Send Message</span>
+  </div>
+  <p class="lede">A Zapier-style platform where users connect services, chain Triggers, Decisions and Actions, including agentic Actions that use other Actions as tools, into workflows, and publish them to run reliably at scale.</p>
+</header>
+
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+  <ol>
+    <li><a href="#requirements">Requirements</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#control">Control plane</a></li>
+    <li><a href="#actions">Actions</a></li>
+    <li><a href="#agentic">Agentic actions</a></li>
+    <li><a href="#triggers">Trigger plane</a></li>
+    <li><a href="#trigger-to-run">Trigger to execution</a></li>
+    <li><a href="#execution">Execution flow</a></li>
+    <li><a href="#reliability">Queues, retries &amp; recovery</a></li>
+    <li><a href="#integrations">Integrations &amp; credentials</a></li>
+    <li><a href="#sandbox">Custom code sandbox</a></li>
+    <li><a href="#isolation">Isolation &amp; fairness</a></li>
+    <li><a href="#scale">Scale &amp; bottlenecks</a></li>
+    <li><a href="#storage">Storage</a></li>
+    <li><a href="#schemas">Storage schemas</a></li>
+    <li><a href="#data-model">Data model</a></li>
+    <li><a href="#flows">Concrete flows</a></li>
+    <li><a href="#tradeoffs">Decisions &amp; trade-offs</a></li>
+  </ol>
+</nav>
+
+<main>
+<section id="requirements">
+  <h2>Requirements</h2>
+  <div class="grid2">
+    <div class="req">
+      <h3>Functional</h3>
+      <ul>
+        <li>Browse a catalog of components and connect accounts (OAuth, API key or basic auth).</li>
+        <li>Build a workflow: one <span class="kind" style="background:var(--trigger-soft);color:var(--trigger)">Trigger</span>, then any mix of <span class="kind" style="background:var(--decision-soft);color:var(--decision)">Decisions</span> and <span class="kind" style="background:var(--action-soft);color:var(--action)">Actions</span>, with data mapped from earlier step outputs.</li>
+        <li>Publish, unpublish and version workflows.</li>
+        <li>Triggers: webhook, polling, schedule. Decisions: filter, branch, pause and resume.</li>
+        <li>Run history with step inputs and outputs; retry a failed run.</li>
+        <li>Agentic actions: a goal plus a set of allowed actions as tools, returning a validated result.</li>
+      </ul>
+    </div>
+    <div class="req">
+      <h3>Non-functional</h3>
+      <ul>
+        <li>Never lose a trigger event. At-least-once delivery with idempotency keys, so side effects happen effectively once.</li>
+        <li>One heavy tenant or slow provider must not affect others.</li>
+        <li>Respect each provider's rate limits.</li>
+        <li>99.95% availability for accepting trigger events. For webhooks, p99 of under 5 seconds from receipt to the first step starting.</li>
+        <li>Encrypted credentials; sandboxed custom code.</li>
+        <li>Agents stay within their permissions and their cost, call and time limits, even when a tool result tries to mislead them.</li>
+      </ul>
+      <div class="nums">
+        <div><b>10M</b><span>active workflows</span></div>
+        <div><b>1B</b><span>step runs / day</span></div>
+        <div><b>~12k/s</b><span>average, 50k+/s peak</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="architecture">
+  <h2>Architecture</h2>
+  <p>Trigger sources write events to Kafka. The orchestrator moves each run forward one step at a time. All connector code, including the poll handlers that pollers run, executes in one sandboxed runtime pool, which is the only caller of provider APIs. The Connection Service talks only to providers' OAuth endpoints, for token exchange and refresh. All outbound traffic leaves through the egress proxy. Agent actions run in the Agent Runtime, which owns the model loop and the policy gate and calls tools through the Connector Runtime. To the orchestrator, an agent is one action.</p>
+  <div class="diagram wide">
+<svg class="arch big" viewBox="0 0 1200 985" role="img" aria-label="High-level architecture: control plane, trigger plane, Kafka, execution plane, storage and external providers">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+
+<!-- clients -->
+<rect class="box n" x="20" y="50" width="130" height="60" rx="7"/><text class="ttl" x="34" y="76">Builder UI</text><text class="sub" x="34" y="95">editor · run history</text>
+<rect class="box n" x="175" y="50" width="130" height="60" rx="7"/><text class="ttl" x="189" y="76">API Gateway</text><text class="sub" x="189" y="95">auth · rate limits</text>
+<path class="ln" d="M150 80H173" marker-end="url(#ah)"/><path class="ln" d="M305 80H328" marker-end="url(#ah)"/>
+
+<!-- control plane -->
+<rect class="plane-bg" x="330" y="20" width="850" height="120" rx="10"/>
+<text class="plane-lbl" x="346" y="42">CONTROL PLANE</text>
+<rect class="box n" x="345" y="56" width="195" height="64" rx="7"/><text class="ttl" x="359" y="82">Workflow Service</text><text class="sub" x="359" y="101">definitions · publish</text>
+<rect class="box n" x="555" y="56" width="195" height="64" rx="7"/><text class="ttl" x="569" y="82">Connector Registry</text><text class="sub" x="569" y="101">manifests · versions</text>
+<rect class="box n" x="765" y="56" width="195" height="64" rx="7"/><text class="ttl" x="779" y="82">Connection Service</text><text class="sub" x="779" y="101">OAuth · token refresh</text>
+<rect class="box n" x="975" y="56" width="190" height="64" rx="7"/><text class="ttl" x="989" y="82">Run History API</text><text class="sub" x="989" y="101">runs · logs · replay</text>
+<path class="ln" d="M442 120V178" marker-end="url(#ah)"/><text class="note" x="450" y="158">publish: subscribe · schedule</text>
+
+<!-- trigger plane -->
+<rect class="plane-bg" x="20" y="180" width="920" height="128" rx="10"/>
+<text class="plane-lbl" x="36" y="202">TRIGGER PLANE</text>
+<rect class="box t" x="35" y="218" width="290" height="70" rx="7"/><text class="ttl" x="49" y="244">Webhook Ingress</text><text class="sub" x="49" y="264">verify · ack · enqueue</text>
+<rect class="box t" x="338" y="218" width="290" height="70" rx="7"/><text class="ttl" x="352" y="244">Pollers</text><text class="sub" x="352" y="264">leases · cursors · dedup</text><text class="sub" x="352" y="280">calls via runtime</text>
+<rect class="box t" x="641" y="218" width="290" height="70" rx="7"/><text class="ttl" x="655" y="244">Timer Scanners</text><text class="sub" x="655" y="264">schedules · delays</text>
+<path class="ln" d="M1008 240H942" marker-end="url(#ah)"/><text class="note" x="975" y="232" text-anchor="middle">webhooks</text>
+
+<path class="ln" d="M180 288V368" marker-end="url(#ah)"/><path class="ln" d="M483 288V368" marker-end="url(#ah)"/><path class="ln" d="M786 288V368" marker-end="url(#ah)"/>
+
+<!-- kafka -->
+<rect class="box b" x="20" y="340" width="920" height="86" rx="10"/>
+<text class="plane-lbl" x="36" y="360">KAFKA</text>
+<rect class="box q" x="35" y="370" width="671" height="40" rx="6"/><text class="ttl" x="370" y="395" text-anchor="middle">trigger-events · keyed by workflowId · carries eventId</text>
+<rect class="box q" x="719" y="370" width="215" height="40" rx="6"/><text class="ttl" x="826" y="395" text-anchor="middle">run-commands · by runId</text>
+
+<!-- execution plane -->
+<rect class="plane-bg" x="20" y="460" width="920" height="262" rx="10"/>
+<text class="plane-lbl" x="36" y="482">EXECUTION PLANE</text>
+<path class="ln" d="M135 410V496" marker-end="url(#ah)"/>
+<path class="ln dash" d="M880 410V444H200V496" marker-end="url(#ah)"/>
+<path class="ln" d="M745 496V412" marker-end="url(#ah)"/><text class="note" x="739" y="476" text-anchor="end">step results</text>
+<path class="ln" d="M755 668H767V412" marker-end="url(#ah)"/><text class="note" x="773" y="476">agent result</text>
+<rect class="box d" x="35" y="498" width="200" height="60" rx="7"/><text class="ttl" x="49" y="524">Orchestrator</text><text class="sub" x="49" y="543">state machine · outbox</text>
+<rect class="box d" x="35" y="574" width="200" height="60" rx="7"/><text class="ttl" x="49" y="600">Correlation Service</text><text class="sub" x="49" y="619">wait-for-event</text>
+<path class="ln" d="M135 559V573" marker-start="url(#ah)" marker-end="url(#ah)"/>
+<rect class="box q" x="262" y="508" width="160" height="44" rx="6"/><text class="ttl" x="342" y="527" text-anchor="middle">step-tasks</text><text class="sub" x="342" y="543" text-anchor="middle">SQS · connector · tier</text>
+<path class="ln" d="M235 530H260" marker-end="url(#ah)"/><path class="ln" d="M422 530H446" marker-end="url(#ah)"/>
+<rect class="box x" x="448" y="498" width="307" height="136" rx="8"/><text class="ttl" x="462" y="522">Connector Runtime</text><text class="sub" x="462" y="540">step · poll · interactive pools</text>
+<rect class="box n" x="462" y="552" width="135" height="34" rx="5"/><text class="sm" x="474" y="574">V8 isolates</text>
+<rect class="box n" x="607" y="552" width="135" height="34" rx="5"/><text class="sm" x="619" y="574">microVM sandbox</text>
+<rect class="box n" x="462" y="594" width="280" height="30" rx="5"/><text class="sm" x="474" y="614">Bundle cache agent (one per node)</text>
+<rect class="box n" x="780" y="530" width="150" height="56" rx="7"/><text class="ttl" x="794" y="554">Egress proxy</text><text class="sub" x="794" y="573">auth · allowlist</text>
+<path class="ln" d="M755 558H778" marker-end="url(#ah)"/>
+<path class="ln" d="M930 558H1008" marker-end="url(#ah)"/><text class="note" x="970" y="550" text-anchor="middle">API calls</text>
+
+<!-- providers -->
+<rect class="box ext" x="1010" y="180" width="170" height="542" rx="10"/>
+<text class="ttl" x="1024" y="208">External providers</text>
+<text class="sub" x="1024" y="236">Salesforce</text><text class="sub" x="1024" y="258">Gmail</text><text class="sub" x="1024" y="280">Slack</text><text class="sub" x="1024" y="302">WhatsApp</text><text class="sub" x="1024" y="324">HubSpot</text><text class="sub" x="1024" y="346">Stripe</text><text class="sub" x="1024" y="368">Google Sheets</text><text class="sub" x="1024" y="390">+ long tail</text>
+<text class="ttl" x="1024" y="430">Model API</text><text class="sub" x="1024" y="450">LLM for agent turns</text>
+<text class="note" x="1024" y="696">one OAuth app</text><text class="note" x="1024" y="712">per provider</text>
+
+<!-- agent path -->
+<path class="ln" d="M342 552V650" marker-start="url(#ah)" marker-end="url(#ah)"/><text class="note" x="338" y="604" text-anchor="end">agent · tool calls</text>
+<rect class="box x" x="262" y="652" width="493" height="60" rx="8"/><text class="ttl" x="276" y="676">Agent Runtime</text><text class="sub" x="276" y="695">session loop · policy gate · model workers (agent-llm) · agent-commands</text>
+<path class="ln" d="M600 634V650" marker-end="url(#ah)"/><text class="note" x="608" y="646">tool results</text>
+<path class="ln" d="M755 682H855V588" marker-end="url(#ah)"/>
+
+<!-- storage -->
+<path class="ln" d="M600 722V768" marker-end="url(#ah)"/><text class="note" x="608" y="830">state · payloads · keys</text>
+<rect class="plane-bg" x="20" y="770" width="1160" height="200" rx="10"/>
+<text class="plane-lbl" x="36" y="792">STORAGE &amp; SHARED SERVICES</text>
+<rect class="box s" x="35" y="806" width="275" height="70" rx="7"/><text class="ttl" x="49" y="830">Postgres</text><text class="sub" x="49" y="849">workflows · versions · connections</text><text class="sub" x="49" y="865">registry · poll_state · epochs · usage</text>
+<rect class="box s" x="322" y="806" width="275" height="70" rx="7"/><text class="ttl" x="336" y="830">DynamoDB</text><text class="sub" x="336" y="849">runs · steps · timers · run_by_event</text><text class="sub" x="336" y="865">ledger · outbox · agent sessions</text>
+<rect class="box s" x="609" y="806" width="275" height="70" rx="7"/><text class="ttl" x="623" y="830">Redis</text><text class="sub" x="623" y="849">seen-IDs · rate-limit buckets</text><text class="sub" x="623" y="865">quota counters · shard leases</text>
+<rect class="box s" x="896" y="806" width="275" height="70" rx="7"/><text class="ttl" x="910" y="830">KMS · Secrets Manager</text><text class="sub" x="910" y="849">regional keys wrap account DEKs</text><text class="sub" x="910" y="865">OAuth app + model API secrets</text>
+<rect class="box s" x="35" y="888" width="275" height="70" rx="7"/><text class="ttl" x="49" y="912">S3 · payloads</text><text class="sub" x="49" y="931">payloads · agent transcripts</text><text class="sub" x="49" y="947">TTL by plan retention</text>
+<rect class="box s" x="322" y="888" width="275" height="70" rx="7"/><text class="ttl" x="336" y="912">S3 · artifact store</text><text class="sub" x="336" y="931">signed connector bundles</text><text class="sub" x="336" y="947">content-addressed by sha256</text>
+<rect class="box s" x="609" y="888" width="275" height="70" rx="7"/><text class="ttl" x="623" y="912">ClickHouse</text><text class="sub" x="623" y="931">run events · searchable logs</text><text class="sub" x="623" y="947">per-step metrics</text>
+<rect class="box s" x="896" y="888" width="275" height="70" rx="7"/><text class="ttl" x="910" y="912">Metrics &amp; alerting</text><text class="sub" x="910" y="931">connector health · auto-pause</text><text class="sub" x="910" y="947">user notifications</text>
+</svg>
+  </div>
+  <div class="legend">
+    <span><i class="sw t"></i>Trigger plane</span>
+    <span><i class="sw b"></i>Kafka topics and queues</span>
+    <span><i class="sw d"></i>Run control</span>
+    <span><i class="sw x"></i>Connector execution</span>
+    <span><i class="sw s"></i>Storage</span>
+  </div>
+  <h3>The path of one event</h3>
+  <ol class="steps">
+    <li><span>A trigger source (webhook, poll or schedule) emits a <code>TriggerEvent</code> to <code>trigger-events</code>, with a deterministic <code>eventId</code>.</span></li>
+    <li><span>The orchestrator creates the run only if <code>run_by_event</code> accepts the conditional insert, then enqueues the first step on <code>step-tasks</code>.</span></li>
+    <li><span>The Connector Runtime loads the pinned bundle, decrypts the token with the account DEK, and calls the provider through the egress proxy.</span></li>
+    <li><span>The step result goes to <code>run-commands</code>, keyed by <code>runId</code>. Partition ownership makes one orchestrator instance the owner of the run, and a version check on each write keeps the transition exact.</span></li>
+    <li><span>Delays and waits put the run to sleep as a timer or correlation row. <code>TimerFired</code> or <code>EventMatched</code> wakes it through the same topic.</span></li>
+    <li><span>An agent action is dispatched like any other action, to the Agent Runtime. It runs the model loop, sends each allowed tool call through <code>step-tasks</code>, and reports one <code>StepCompleted</code> when it finishes.</span></li>
+  </ol>
+</section>
+
+<section id="control">
+  <h2>Control plane</h2>
+  <h3>Connector Registry</h3>
+  <p>Each connector is a versioned manifest plus a small code module built with a connector SDK. The manifest declares the auth type, the triggers (webhook or polling), the actions, and an input and output JSON Schema for each. The builder renders its forms from those schemas. Connectors deploy independently, so a broken Gmail connector can't take down the engine.</p>
+  <h3>Workflow Service</h3>
+  <p>A workflow is a tree of steps stored as JSON: a trigger, then an ordered list of steps, where a branch holds its own list of steps for each path. Step inputs reference the trigger and earlier steps with templates.</p>
+<pre class="code"><code>{
+  "schemaVersion": 1,
+  "trigger": { "id": "trigger", "connector": "salesforce", "event": "new_lead",
+               "connectionId": "c_sf_01", "config": { "object": "Lead" } },
+  "steps": [
+    { "id": "check_score", "type": "decision", "kind": "filter",
+      "condition": { "left": "{{trigger.Lead_Score__c}}", "op": "gt", "right": 80 } },
+    { "id": "welcome", "type": "action", "executor": "connector", "connector": "whatsapp",
+      "operation": "send_message", "connectionId": "c_wa_01",
+      "input": { "to": "{{trigger.Phone}}", "text": "Hi {{trigger.FirstName}}" } }
+  ],
+  "settings": { "timezone": "Asia/Jerusalem", "autoPauseAfterFailures": 10,
+                "onError": { "retry": { "maxAttempts": 5, "backoff": "exponential" }, "then": "fail_run" } }
+}</code></pre>
+  <p>After the trigger there are only two step types, matching the product's components. An <code>action</code> does work, and its <code>executor</code> is <code>connector</code>, <code>code</code> or <code>agent</code>. A <code>decision</code> controls the flow, and its <code>kind</code> is <code>filter</code>, <code>branch</code> (paths with conditions, plus a default), <code>delay</code> or <code>wait_for_event</code>. Because branches nest their own steps, the structure can't contain a cycle, and the steps a field may reference are simply the ones above it on its path.</p>
+  <ul>
+    <li><b>Immutable versions.</b> Publishing creates a new version, and each run is pinned to the version it started on. Editing never breaks runs in progress.</li>
+    <li><b>Publishing.</b> One Postgres transaction inserts the next version, moves its <code>trigger_subscriptions</code> to that version and sets <code>active_version</code>. After it commits, the trigger is activated: a webhook is registered with the provider through the runtime, a poll schedule is created in <code>poll_state</code>, or the first timer is written. Unpublishing reverses this, and runs still waiting are cancelled.</li>
+    <li><b>Validation at publish:</b> unique step ids, each reference points to a step above it on its path, required fields mapped, mapped types fit the schemas, connections active and owned by the account, agent tools allowed and their constraints valid.</li>
+  </ul>
+  <h3>Connection Service</h3>
+  <ul>
+    <li>Tokens use envelope encryption with the account's DEK (see <a href="#integrations">Integrations &amp; credentials</a>).</li>
+    <li>It is the only writer of tokens. A background job refreshes OAuth tokens before they expire, and a per-connection lock stops two refreshes from racing.</li>
+    <li>The runtime host decrypts a token only at execution time and keeps it in memory only.</li>
+    <li>A revoked token flags every workflow that uses the connection and notifies the user.</li>
+  </ul>
+</section>
+
+<section id="actions">
+  <h2>Actions</h2>
+  <p>An action is an entry in its connector's manifest. Simple calls are fully declarative. Calls that need logic, such as pagination, lookups or reshaping a response, name a code handler instead of a request.</p>
+<pre class="code"><code>- key: send_channel_message
+  displayName: Send Channel Message
+  sideEffect: true
+  idempotency: { supported: true, header: X-Idempotency-Key }
+  input:
+    type: object
+    required: [channel, text]
+    properties:
+      channel: { type: string, title: Channel, dynamicOptions: options/channels }
+      text:    { type: string, title: Message }
+  request:                                   # declarative: no code needed
+    method: POST
+    path: /api/chat.postMessage
+    body: { channel: "{{input.channel}}", text: "{{input.text}}" }
+  output:
+    type: object
+    properties: { ts: { type: string }, channel: { type: string } }
+  sample: { ts: "1728885607.000100", channel: "C04SALES" }</code></pre>
+<pre class="code"><code>// handler-backed action
+export async function findLead(ctx: Ctx, input: { email: string }) {
+  const q = `SELECT Id, Email, Lead_Score__c FROM Lead WHERE Email = '${ctx.escape(input.email)}' LIMIT 1`;
+  const res = await ctx.http.get("/services/data/v61.0/query", { params: { q } });
+  return res.data.records[0] ?? null;
+}</code></pre>
+  <p>In a workflow, an action with <code>executor: connector</code> picks the <code>connector</code>, <code>operation</code> and <code>connectionId</code> and maps its <code>input</code> with templates. The Workflow Service validates the mapping at publish against the input schema of the pinned connector version. Code actions (<code>executor: code</code>, run in the sandbox) and agent actions (<code>executor: agent</code>, run by the Agent Runtime) follow the same contract: mapped input, one task, one validated result.</p>
+  <h3>Execution inside the Connector Runtime</h3>
+  <ol class="steps">
+    <li><span>Take the task <code>{runId, stepId, attempt}</code> from <code>step-tasks</code>.</span></li>
+    <li><span>Load the pinned workflow version, which is cached since it never changes, and the connector bundle by hash.</span></li>
+    <li><span>Resolve templates from the trigger and step outputs, then validate the input against its schema.</span></li>
+    <li><span>Take a rate-limit token for the connection and for the provider app. If none is available, re-queue with a delay.</span></li>
+    <li><span>Claim <code>action_ledger (runId, stepId)</code>. If it's already done, return the stored result.</span></li>
+    <li><span>Run the request or handler in the sandbox. The host adds the <code>Authorization</code> header and the idempotency key.</span></li>
+    <li><span>Classify the response with the manifest's <code>errors</code>: success, retryable, auth (refresh once), or fatal.</span></li>
+    <li><span>Validate the output against its schema. Anything over 256 KB goes to S3.</span></li>
+    <li><span>Write <code>step_executions</code>, mark the ledger done, send <code>StepCompleted</code> to <code>run-commands</code>, and acknowledge the task.</span></li>
+  </ol>
+</section>
+
+<section id="agentic">
+  <h2>Agentic actions</h2>
+  <p>An agentic action gets a goal instead of one fixed operation, and chooses from a set of allowed actions as tools. To the workflow engine it is still an action: it receives input, does work, keeps state while it runs, and returns output that later steps can map. It is defined as an action with <code>executor: agent</code>, and the Agent Runtime runs it. Example: <b>Agent: Resolve Customer Request</b> may call Salesforce: Find Customer, Shopify: Get Order and Gmail: Send Reply before it returns.</p>
+
+  <h3>Defining an agent action</h3>
+<pre class="code"><code>{
+  "id": "resolve_request",
+  "type": "action",
+  "executor": "agent",
+  "model": "claude-sonnet-5-5",
+  "goal": "Resolve this customer request: {{trigger.body}}. Customer email: {{trigger.from}}.",
+  "instructions": "Look up the customer and their latest order before replying. Reply once.",
+  "tools": [
+    { "connector": "salesforce", "operation": "find_customer", "connectionId": "c_sf_01" },
+    { "connector": "shopify",    "operation": "get_order",     "connectionId": "c_shop_01" },
+    { "connector": "gmail",      "operation": "send_reply",    "connectionId": "c_gm_01",
+      "fixed":  { "to": "{{trigger.from}}", "threadId": "{{trigger.threadId}}" },
+      "policy": { "maxCalls": 1, "approval": "none" } }
+  ],
+  "limits": { "maxTurns": 12, "maxToolCalls": 10, "maxTokens": 200000,
+              "maxCostUsd": 0.50, "timeoutSec": 300 },
+  "output": {
+    "type": "object",
+    "required": ["status", "summary"],
+    "properties": {
+      "status":  { "enum": ["resolved", "needs_human"] },
+      "summary": { "type": "string" },
+      "orderId": { "type": "string" }
+    }
+  }
+}</code></pre>
+  <p>Later steps use the result like any other action, for example a branch on <code>{{steps.resolve_request.output.status}}</code> that routes <code>needs_human</code> to a Slack alert.</p>
+
+  <h3>The same actions, exposed as tools</h3>
+  <p>No connector is written twice. At publish, the Workflow Service generates a tool spec for each listed action from its manifest entry, the same one the editor and the runtime use.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Tool spec field</th><th>Comes from</th></tr></thead>
+    <tbody>
+      <tr><td><code>name</code></td><td><code>{connector}__{operation}</code>, e.g. <code>gmail__send_reply</code></td></tr>
+      <tr><td><code>description</code></td><td>The action's <code>description</code> in the manifest, plus an optional <code>agentDescription</code> written for models</td></tr>
+      <tr><td><code>input_schema</code></td><td>The action's input JSON Schema, <b>minus</b> fields the author fixed (<code>to</code>, <code>threadId</code> above) and the connection, which the model never chooses</td></tr>
+      <tr><td>Result shown to the model</td><td>The action's output, trimmed to the fields in its output schema and capped in size</td></tr>
+    </tbody>
+  </table></div>
+<pre class="code"><code>{
+  "name": "gmail__send_reply",
+  "description": "Send a reply in an existing Gmail thread.",
+  "input_schema": {
+    "type": "object",
+    "required": ["body"],
+    "properties": { "body": { "type": "string", "description": "Plain-text reply" } }
+  }
+}</code></pre>
+  <p>A tool call executes through <b>exactly the same pipeline</b> as an action step: template and input validation, rate limits, the <code>action_ledger</code> claim, credentials added by the runtime host, error classification and output validation. The model asks for a call; the platform decides whether it runs and runs it.</p>
+
+  <h3>How the agent loop runs</h3>
+  <div class="diagram">
+<svg class="arch ag" viewBox="0 0 1000 380" role="img" aria-label="Agent loop: Agent Runtime session loop, model call, policy gate, connector runtime, approval and history store">
+<defs><marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+<rect class="box x" x="40" y="140" width="240" height="100" rx="8"/><text class="ttl" x="56" y="168">Agent Runtime</text><text class="sub" x="56" y="188">session loop · one owner per session</text><text class="sub" x="56" y="206">one durable turn at a time</text>
+<rect class="box b" x="420" y="30" width="260" height="80" rx="8"/><text class="ttl" x="436" y="58">Model call</text><text class="sub" x="436" y="78">agent-llm queue · transcript + tools</text>
+<rect class="box n" x="420" y="150" width="260" height="80" rx="8"/><text class="ttl" x="436" y="178">Policy gate</text><text class="sub" x="436" y="198">allowlist · constraints · limits</text>
+<rect class="box x" x="420" y="270" width="260" height="80" rx="8"/><text class="ttl" x="436" y="298">Connector Runtime</text><text class="sub" x="436" y="318">same pipeline as action steps</text>
+<rect class="box ext" x="760" y="30" width="200" height="80" rx="8"/><text class="ttl" x="776" y="58">Model API</text><text class="sub" x="776" y="78">LLM provider</text>
+<rect class="box ext" x="760" y="150" width="200" height="80" rx="8"/><text class="ttl" x="776" y="178">Human approval</text><text class="sub" x="776" y="198">only for gated tools</text>
+<rect class="box ext" x="760" y="270" width="200" height="80" rx="8"/><text class="ttl" x="776" y="298">Providers</text><text class="sub" x="776" y="318">Salesforce · Shopify · Gmail</text>
+<rect class="box s" x="40" y="290" width="240" height="70" rx="8"/><text class="ttl" x="56" y="318">agent_sessions</text><text class="sub" x="56" y="338">agent_events (tool-call history)</text>
+<path class="ln" d="M200 138V55H418" marker-end="url(#ah3)"/><text class="note" x="300" y="48">transcript + tools</text>
+<path class="ln" d="M420 95H240V138" marker-end="url(#ah3)"/><text class="note" x="300" y="88">tool calls or final</text>
+<path class="ln" d="M680 70H758" marker-end="url(#ah3)"/>
+<path class="ln" d="M280 190H418" marker-end="url(#ah3)"/><text class="note" x="300" y="183">proposed calls</text>
+<path class="ln dash" d="M680 190H758" marker-start="url(#ah3)" marker-end="url(#ah3)"/>
+<path class="ln" d="M550 230V268" marker-end="url(#ah3)"/><text class="note" x="558" y="254">allowed calls</text>
+<path class="ln" d="M680 310H758" marker-end="url(#ah3)"/>
+<path class="ln" d="M420 320H330V215H282" marker-end="url(#ah3)"/><text class="note" x="338" y="312">results</text>
+<path class="ln" d="M160 240V288" marker-end="url(#ah3)"/>
+</svg>
+  </div>
+  <p>To the orchestrator, an agent is one action: it dispatches the task once and waits for one <code>StepCompleted</code>. The loop runs inside the Agent Runtime, which is built the same way as the orchestrator: its commands arrive on <code>agent-commands</code> keyed by session, one instance owns each session, and every change is a conditional write on <code>agent_sessions</code> with an outbox. The policy gate and the model workers are parts of the Agent Runtime. Each model turn and each tool call is its own durable unit, so an agent can run for minutes, wait for an approval, or survive a crash without losing its place.</p>
+  <ol class="steps">
+    <li><span><b>Start.</b> The orchestrator dispatches the agent action on <code>step-tasks</code>. The Agent Runtime replies <code>Accepted</code>, so the run's step waits without a queue timeout. It creates the <code>agent_sessions</code> row with the limits snapshot and the tool specs generated at publish, and enqueues turn 1 on <code>agent-llm</code>.</span></li>
+    <li><span><b>Model turn.</b> A model worker sends the transcript and tool specs to the model, stores the response in <code>agent_events</code> <b>before</b> anything acts on it, and reports <code>TurnCompleted</code> on <code>agent-commands</code>.</span></li>
+    <li><span><b>Policy gate.</b> Each requested call is checked: is the tool allowed, are the arguments valid and within constraints, is any limit reached, does it need approval? Rejected calls go back to the model as an error result, so it can try another way.</span></li>
+    <li><span><b>Tool calls.</b> Allowed calls go on <code>step-tasks</code> with deterministic ids such as <code>R1:resolve_request:t2:c1</code>, with replies addressed to <code>agent-commands</code>. Each one writes its own child <code>step_executions</code> row, so it shows in the run timeline and counts toward billing.</span></li>
+    <li><span><b>Next turn.</b> When all calls of the turn have their results, they are appended to the transcript and the next turn is enqueued.</span></li>
+    <li><span><b>Finish.</b> The model ends by calling a built-in <code>finish</code> tool whose schema is the action's <code>output</code>. The Agent Runtime validates it and sends one <code>StepCompleted</code> to <code>run-commands</code>. The orchestrator writes the output and moves the run on.</span></li>
+  </ol>
+
+  <h3>Execution state</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Table</th><th>Key</th><th>Holds</th></tr></thead>
+    <tbody>
+      <tr><td><code>agent_sessions</code></td><td><code>(run_id, step_id, attempt)</code></td><td>status (<code>running</code>, <code>waiting_tools</code>, <code>waiting_approval</code>, <code>finished</code>, <code>limit_exceeded</code>, <code>failed</code>), current turn, model, limits snapshot, counters (turns, tool calls per tool, tokens in and out, cost), <code>rev</code> for the version check, final output</td></tr>
+      <tr><td><code>agent_events</code></td><td>PK <code>run_id#step_id#attempt</code>, SK <code>seq</code></td><td>One row per event: <code>model_request</code>, <code>model_response</code>, <code>tool_call</code>, <code>tool_result</code>, <code>policy_rejected</code>, <code>approval_requested</code>, <code>approval_decided</code>, <code>limit_hit</code>. Content inline when small, otherwise in S3, plus tokens, latency, and the child <code>step_executions</code> key.</td></tr>
+    </tbody>
+  </table></div>
+  <p>The transcript sent to the model is rebuilt from <code>agent_events</code>, so the session row stays small. Both tables share the run's retention TTL.</p>
+
+  <h3>Permissions</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Control</th><th>Enforced by</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td>Tool allowlist</td><td>Policy gate</td><td>Only tools listed in the pinned workflow version exist for the agent. It cannot reach any other connector or action.</td></tr>
+      <tr><td>Connection binding</td><td>Workflow definition</td><td>Each tool is bound to the connection the author chose. The model never sees or picks connections or credentials.</td></tr>
+      <tr><td>Fixed and constrained arguments</td><td>Policy gate</td><td>Fixed fields are removed from the schema and filled by the platform. Other fields can have enums, patterns or allowed-value lists that are checked before the call.</td></tr>
+      <tr><td>Per-tool call limits</td><td>Policy gate</td><td>For example Gmail: Send Reply at most once per session.</td></tr>
+      <tr><td>Approval for sensitive tools</td><td>Policy gate</td><td>The session becomes <code>waiting_approval</code>, and a reviewer's decision resumes it through <code>agent-commands</code>. An approval request expires after its own timeout, such as 24 hours, and expiry counts as a rejection the model is told about.</td></tr>
+      <tr><td>Read vs. write</td><td>Manifest <code>sideEffect</code></td><td>Authors can allow read-only tools freely and require approval for every write.</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Tool results are untrusted input.</b> A customer email or an order note can contain text written to steer the model. That is why every rule above sits in the platform rather than in the prompt: even a misled model can only make calls the gate allows, with arguments the gate accepts.</p>
+
+  <h3>Limits</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Limit</th><th>Checked</th><th>When reached</th></tr></thead>
+    <tbody>
+      <tr><td><code>maxTurns</code>, <code>maxToolCalls</code></td><td>Before each turn and each call</td><td>The model gets one last turn told to call <code>finish</code>. If it doesn't, the step ends <code>limit_exceeded</code>.</td></tr>
+      <tr><td><code>maxTokens</code>, <code>maxCostUsd</code></td><td>After each model response, from usage counters</td><td>Same as above</td></tr>
+      <tr><td><code>timeoutSec</code></td><td>A timer started with the session. Time spent waiting for a human approval doesn't count.</td><td>Pending calls are cancelled where possible and the step ends <code>limit_exceeded</code>.</td></tr>
+      <tr><td>Parallel calls per turn</td><td>Policy gate</td><td>Extra calls wait for the next batch.</td></tr>
+      <tr><td>Account agent budget</td><td>Quota counters in Redis, checked when a session starts and after each turn</td><td>The agent action ends <code>limit_exceeded</code> without starting, follows its <code>onError</code> policy, and the account owner is notified.</td></tr>
+    </tbody>
+  </table></div>
+  <p><code>limit_exceeded</code> follows the step's <code>onError</code> policy like any other failure: fail the run, or continue with the partial output.</p>
+
+  <h3>Tool-call history, retries and replay</h3>
+  <ul>
+    <li><b>Recorded responses are never asked again.</b> The model worker writes each response with a conditional insert keyed by session and turn, and checks for a stored response before calling the model. After a crash, the Agent Runtime rebuilds the session from <code>agent_events</code>. A turn whose model response is already stored is replayed from storage, so a non-deterministic model can't take a different path the second time.</li>
+    <li><b>Tool calls are idempotent.</b> Deterministic call ids go through <code>action_ledger</code>, so a redelivered call can't send the same email twice.</li>
+    <li><b>Retries.</b> A model API error (429, 5xx) retries that turn with backoff. A tool's retryable error retries that call. Neither restarts the whole session.</li>
+    <li><b>Audit and debugging.</b> The run view shows the full transcript: each model turn, every proposed call, what the gate allowed or rejected and why, approvals, and every result.</li>
+    <li><b>Billing.</b> The agent action is one task, each tool call that succeeds is one more, and model tokens are metered on top.</li>
+  </ul>
+</section>
+
+<section id="triggers">
+  <h2>Trigger plane</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Type</th><th>How it works</th><th>Main concern</th></tr></thead>
+    <tbody>
+      <tr><td><span class="kind" style="background:var(--trigger-soft);color:var(--trigger)">Webhook</span></td><td>On publish, register with the provider and get a unique URL <code>/hooks/{subscriptionId}</code>. Ingress checks the signature, writes to Kafka, and returns <code>200</code> once Kafka acknowledges. Providers that send every event to one app endpoint, such as Slack and Meta, arrive at <code>/hooks/app/{connector}</code> and are routed to subscriptions by the team or account id in the payload.</td><td>Acknowledge fast, never drop an event, unregister on unpublish</td></tr>
+      <tr><td><span class="kind" style="background:var(--trigger-soft);color:var(--trigger)">Polling</span></td><td>Pollers own shards of subscriptions through leases. A poller calls the API from a stored cursor minus an overlap window, drops IDs it has already seen, and emits only new items.</td><td>Dedup, interval by plan, jitter, backoff on 429</td></tr>
+      <tr><td><span class="kind" style="background:var(--trigger-soft);color:var(--trigger)">Schedule</span></td><td>Next fire times sit in minute-sized timer buckets, split into shards. Scanners own shards through leases and emit what is due.</td><td>Spread load at popular times like 09:00; time zones and DST</td></tr>
+    </tbody>
+  </table></div>
+  <p>Every trigger emits <code>TriggerEvent {workflowId, version, eventId, payload}</code>. The <code>eventId</code> is the dedup key downstream.</p>
+  <h3>Leases</h3>
+  <p>Pollers, timer scanners and the token refresher all divide their work into 1024 shards. Each shard has one owner at a time, held as a Redis lease with a short TTL that the owner renews every few seconds. If an owner dies, its leases expire and another instance takes the shard.</p>
+  <ul>
+    <li><b>Fencing, for pollers.</b> When a poller takes a shard it increments that shard's epoch in Postgres (<code>shard_epochs</code>). Every cursor write in <code>poll_state</code> carries that epoch and is rejected if a newer owner exists, so a paused or partitioned old owner can't move a cursor backwards. The epoch lives in the same database as the cursor, so the check is part of the same write.</li>
+    <li><b>No fencing needed elsewhere.</b> Timer scanners write to DynamoDB, where their duplicates are already harmless: the event id is deterministic, deleting a timer twice does nothing, and the next timer has a deterministic id. The token refresher is protected by its per-connection lock and a <code>last_refreshed_at</code> check before saving.</li>
+    <li><b>Why Redis is enough.</b> A Redis failover can briefly give a shard two owners. That only costs duplicate work: the epoch check protects poll cursors, and <code>run_by_event</code> drops duplicate events.</li>
+    <li><b>The orchestrator needs none of this.</b> Kafka partition ownership on <code>run-commands</code> decides which instance owns a run, and the <code>rev</code> check fences its writes. The Agent Runtime works the same way on <code>agent-commands</code>, keyed by session and fenced by <code>agent_sessions.rev</code>.</li>
+  </ul>
+</section>
+
+<section id="trigger-to-run">
+  <h2>Trigger to execution</h2>
+  <p>Every trigger type starts differently but ends the same way. Each one turns something that happened into a <code>TriggerEvent</code> with a deterministic <code>eventId</code> and writes it to Kafka. From there, one shared path turns the event into exactly one run.</p>
+  <div class="diagram wide">
+<svg class="arch tr" viewBox="0 0 1090 480" role="img" aria-label="Webhook, polling and schedule triggers converge into run creation">
+<defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+<rect class="plane-bg" x="15" y="30" width="840" height="100" rx="10"/>
+<text class="ttl" x="30" y="76">Webhook</text><text class="sub" x="30" y="94">provider pushes</text>
+<rect class="box t" x="150" y="45" width="160" height="70" rx="7"/>
+<text class="ttl" x="162" y="69">Provider POST</text><text class="sub" x="162" y="88">/hooks/{sub_id}</text>
+<path class="ln" d="M310 80H324" marker-end="url(#ah2)"/>
+<rect class="box t" x="326" y="45" width="160" height="70" rx="7"/>
+<text class="ttl" x="338" y="69">Ingress checks</text><text class="sub" x="338" y="88">signature · limits</text>
+<text class="sub" x="338" y="104">sub is active</text>
+<path class="ln" d="M486 80H500" marker-end="url(#ah2)"/>
+<rect class="box t" x="502" y="45" width="160" height="70" rx="7"/>
+<text class="ttl" x="514" y="69">Parse</text><text class="sub" x="514" y="88">connector parse()</text>
+<text class="sub" x="514" y="104">1 request → N events</text>
+<path class="ln" d="M662 80H676" marker-end="url(#ah2)"/>
+<rect class="box t" x="678" y="45" width="160" height="70" rx="7"/>
+<text class="ttl" x="690" y="69">Emit, then 200</text><text class="sub" x="690" y="88">eventId = sub:id</text>
+<text class="sub" x="690" y="104">(provider event id)</text>
+<path class="ln" d="M838 80L878 180" marker-end="url(#ah2)"/>
+<rect class="plane-bg" x="15" y="150" width="840" height="100" rx="10"/>
+<text class="ttl" x="30" y="196">Polling</text><text class="sub" x="30" y="214">platform pulls</text>
+<rect class="box t" x="150" y="165" width="160" height="70" rx="7"/>
+<text class="ttl" x="162" y="189">Lease due sub</text><text class="sub" x="162" y="208">next_poll_at ≤ now</text>
+<text class="sub" x="162" y="224">shard owner only</text>
+<path class="ln" d="M310 200H324" marker-end="url(#ah2)"/>
+<rect class="box t" x="326" y="165" width="160" height="70" rx="7"/>
+<text class="ttl" x="338" y="189">Fetch</text><text class="sub" x="338" y="208">poll() from cursor</text>
+<text class="sub" x="338" y="224">minus overlap</text>
+<path class="ln" d="M486 200H500" marker-end="url(#ah2)"/>
+<rect class="box t" x="502" y="165" width="160" height="70" rx="7"/>
+<text class="ttl" x="514" y="189">Dedup</text><text class="sub" x="514" y="208">drop seen IDs</text>
+<text class="sub" x="514" y="224">Redis ZSET</text>
+<path class="ln" d="M662 200H676" marker-end="url(#ah2)"/>
+<rect class="box t" x="678" y="165" width="160" height="70" rx="7"/>
+<text class="ttl" x="690" y="189">Emit, then cursor</text><text class="sub" x="690" y="208">eventId = sub:id</text>
+<text class="sub" x="690" y="224">(record id)</text>
+<path class="ln" d="M838 200L878 200" marker-end="url(#ah2)"/>
+<rect class="plane-bg" x="15" y="270" width="840" height="100" rx="10"/>
+<text class="ttl" x="30" y="316">Schedule</text><text class="sub" x="30" y="334">clock fires</text>
+<rect class="box t" x="150" y="285" width="160" height="70" rx="7"/>
+<text class="ttl" x="162" y="309">Timer due</text><text class="sub" x="162" y="328">minute bucket scan</text>
+<text class="sub" x="162" y="344">fire_at ≤ now</text>
+<path class="ln" d="M310 320H324" marker-end="url(#ah2)"/>
+<rect class="box t" x="326" y="285" width="160" height="70" rx="7"/>
+<text class="ttl" x="338" y="309">Next fire first</text><text class="sub" x="338" y="328">insert next timer</text>
+<text class="sub" x="338" y="344">cron + timezone</text>
+<path class="ln" d="M486 320H500" marker-end="url(#ah2)"/>
+<rect class="box t" x="502" y="285" width="160" height="70" rx="7"/>
+<text class="ttl" x="514" y="309">Build event</text><text class="sub" x="514" y="328">scheduledAt only</text>
+<text class="sub" x="514" y="344">no provider call</text>
+<path class="ln" d="M662 320H676" marker-end="url(#ah2)"/>
+<rect class="box t" x="678" y="285" width="160" height="70" rx="7"/>
+<text class="ttl" x="690" y="309">Emit, then delete</text><text class="sub" x="690" y="328">eventId = sub:time</text>
+<text class="sub" x="690" y="344">(fire time)</text>
+<path class="ln" d="M838 320L878 220" marker-end="url(#ah2)"/>
+<rect class="box b" x="880" y="170" width="190" height="60" rx="7"/><text class="ttl" x="894" y="195">trigger-events</text><text class="sub" x="894" y="214">Kafka · by workflowId</text>
+<path class="ln" d="M975 230V258" marker-end="url(#ah2)"/>
+<rect class="box d" x="880" y="260" width="190" height="140" rx="7"/><text class="ttl" x="894" y="285">Create run</text><text class="sub" x="894" y="303">Orchestrator</text>
+<text class="sub" x="894" y="326">run_by_event insert</text>
+<text class="sub" x="894" y="342">new → runs row</text>
+<text class="sub" x="894" y="358">exists → drop</text>
+<text class="sub" x="894" y="374">paused, over quota → drop</text>
+<text class="sub" x="894" y="390">at concurrency → pending</text>
+<path class="ln" d="M975 400V418" marker-end="url(#ah2)"/>
+<rect class="box x" x="880" y="420" width="190" height="46" rx="7"/><text class="ttl" x="894" y="441">First step queued</text><text class="sub" x="894" y="458">step-tasks</text>
+</svg>
+  </div>
+
+  <h3>How the trigger types differ</h3>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>Webhook</th><th>Polling</th><th>Schedule</th></tr></thead>
+    <tbody>
+      <tr><td>What starts it</td><td>The provider sends an HTTP request to <code>/hooks/{sub_id}</code></td><td>The shard owner finds a subscription with <code>next_poll_at ≤ now</code></td><td>A timer scanner finds a timer with <code>fire_at ≤ now</code></td></tr>
+      <tr><td>Source of <code>eventId</code></td><td><code>sub_id</code> + the provider's event or record id, as the manifest's <code>dedupKey</code> defines</td><td><code>sub_id</code> + the record id, or record id + modified time for update triggers</td><td><code>sub_id</code> + the scheduled fire time in UTC</td></tr>
+      <tr><td>Payload</td><td>The parsed request body</td><td>The full record from the provider's API</td><td><code>scheduledAt</code>, plus the trigger config</td></tr>
+      <tr><td>Must be durable before</td><td>Returning <code>200</code>. The event is in Kafka before the provider hears success.</td><td>Advancing the cursor. Events are in Kafka before <code>poll_state</code> moves.</td><td>Deleting the fired timer. The next fire is written first, then the event, then the delete.</td></tr>
+      <tr><td>Where duplicates come from</td><td>Provider retries after a timeout or a lost <code>200</code></td><td>The overlap window, and crashes before the seen-ID write</td><td>A scanner crash between emit and delete</td></tr>
+      <tr><td>Recovering missed events</td><td>Provider replay APIs where they exist, plus a reconcile job that re-creates a missing webhook registration</td><td>Automatic. The cursor resumes from the last saved position.</td><td>Catch-up scan of missed buckets after downtime, within a misfire window</td></tr>
+      <tr><td>Typical latency</td><td>About 1 second</td><td>Up to the poll interval, 1 to 15 minutes by plan</td><td>Within the fire minute</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The shared path: event to run</h3>
+  <ol class="steps">
+    <li><span><b>Consume.</b> The orchestrator instance that owns the <code>trigger-events</code> partition for <code>workflowId</code> reads the event.</span></li>
+    <li><span><b>Check the workflow.</b> If the workflow is paused or archived, the event is dropped and logged. The event carries the version its subscription was created for, so an event already in flight during a republish still runs on that version.</span></li>
+    <li><span><b>Check limits.</b> At its concurrency limit, the workflow still gets its run, created as <code>pending</code> and started when a slot frees. Over its monthly task quota, the account gets no run; the event is logged and the owner is notified.</span></li>
+    <li><span><b>Claim the event.</b> Conditional insert into <code>run_by_event</code> on <code>workflow_id#event_id</code>. If the row exists, this is a duplicate and processing stops here.</span></li>
+    <li><span><b>Create the run.</b> One <code>TransactWriteItems</code> writes the <code>runs</code> row (status <code>running</code>, or <code>pending</code> at the concurrency limit, <code>rev = 1</code>, payload reference in S3), the first <code>step_executions</code> row as <code>pending</code>, and an outbox message for the first step.</span></li>
+    <li><span><b>Hand off.</b> The outbox relay publishes the first step to <code>step-tasks</code>, and the orchestrator commits its Kafka offset. From here the run follows the <a href="#execution">execution flow</a>.</span></li>
+  </ol>
+
+  <h3>When the write to Kafka fails</h3>
+  <ul>
+    <li><b>Webhook.</b> Ingress returns <code>503</code>, and the provider's own retry delivers the event later. Ingress never returns <code>200</code> for an event it hasn't stored.</li>
+    <li><b>Polling.</b> The cursor isn't advanced, so the next poll fetches the same records again and dedup removes any that did get through.</li>
+    <li><b>Schedule.</b> The timer row stays in place, so the next scan finds it and emits it again. The deterministic <code>eventId</code> makes the retry harmless.</li>
+  </ul>
+</section>
+
+<section id="execution">
+  <h2>Execution flow</h2>
+  <p>The orchestrator moves a run forward one step at a time. A run keeps a <b>cursor</b>, its position in the definition tree written as a path of step ids such as <code>by_value.default.wait_3d</code>, and a <b>context</b>: the trigger output plus every finished step's output.</p>
+  <p>After the trigger, a workflow has two kinds of step. An <b>action</b> does work outside the run and is dispatched to an executor. A <b>decision</b> only decides what the run does next, and the orchestrator evaluates it itself.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Step</th><th>Variant</th><th>Runs in</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="3"><span class="kind" style="background:var(--action-soft);color:var(--action)">Action</span></td><td><code>connector</code></td><td>Connector Runtime</td><td>Dispatched on <code>step-tasks</code>. The run waits for <code>StepCompleted</code>, saves the output and moves the cursor on.</td></tr>
+      <tr><td><code>code</code></td><td>Sandbox pool</td><td>The same, run in the sandbox with no credentials.</td></tr>
+      <tr><td><code>agent</code></td><td>Agent Runtime</td><td>The same contract. The Agent Runtime replies <code>Accepted</code>, runs the model loop, and sends one <code>StepCompleted</code> at the end (see <a href="#agentic">Agentic actions</a>).</td></tr>
+      <tr><td rowspan="4"><span class="kind" style="background:var(--decision-soft);color:var(--decision)">Decision</span></td><td><code>filter</code></td><td>Orchestrator</td><td>Outcome <code>continue</code>, or <code>stop</code>: the run ends as <code>filtered</code>, which isn't billed.</td></tr>
+      <tr><td><code>branch</code></td><td>Orchestrator</td><td>Outcome <code>take(path)</code>: the first path whose condition matches, else the default, else none.</td></tr>
+      <tr><td><code>delay</code></td><td>Orchestrator + timer</td><td>Outcome <code>wait(until a time)</code>: a timer row is written and the run becomes <code>waiting</code>, leaving memory. <code>TimerFired</code> brings it back.</td></tr>
+      <tr><td><code>wait_for_event</code></td><td>Orchestrator + correlation</td><td>Outcome <code>wait(until an event or a timeout)</code>. The step registers an event subscription through the trigger plane. Its events arrive on <code>trigger-events</code>, and instead of creating a run, the orchestrator looks up the correlation key and sends <code>EventMatched</code> to the waiting run. A timeout takes the <code>onTimeout</code> path.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>Action</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td>Does work outside the run</td><td>Yes: calls a provider, runs code or runs an agent</td><td>No: only decides what happens next</td></tr>
+      <tr><td>Dispatched to a queue</td><td>Yes, to its executor</td><td>No, evaluated by the orchestrator</td></tr>
+      <tr><td>Credentials, side effects, ledger</td><td>Yes</td><td>No</td></tr>
+      <tr><td>Retries</td><td>Yes, with backoff timers</td><td>No; a pure evaluation of the run's context</td></tr>
+      <tr><td>Billed</td><td>One task</td><td>Free</td></tr>
+    </tbody>
+  </table></div>
+<pre class="code"><code>loop for run R:
+  step = definition.at(cursor)
+  if step.type == action:
+      enqueue on its executor's queue; stop until StepCompleted
+  else:                                         # decision, evaluated here
+      outcome = evaluate(step, context)         # recorded on the decision's step row
+      continue     → cursor = next(cursor)
+      stop         → finish(filtered)
+      take(path)   → cursor = first step of path, or next(cursor) if no path
+      wait(until)  → write timer or correlation row; status = waiting
+                     stop until TimerFired | EventMatched
+  // end of a path → the step after its branch; end of the top level → finish(succeeded)</code></pre>
+  <p>Decisions that don't wait are evaluated inline, so one command can carry a run through several filters and branches and stop only at the next action or wait. Each decision's outcome is recorded on its own step row, for example <code>{ "outcome": "take", "path": "default" }</code>. Steps on paths a branch didn't take get no row at all: the run view shows them as skipped, derived from that outcome and the compiled definition. That keeps every transition's transaction small, under DynamoDB's 100-item limit however large a branch is.</p>
+  <p><b>Long-running actions.</b> An executor can reply <code>Accepted</code> for work that outlasts a queue's visibility timeout, such as an agent waiting for an approval or a provider job that finishes later. The step then waits under its own deadline, which the executor extends with heartbeats, until <code>StepCompleted</code> arrives.</p>
+  <p>Each transition is one conditional write: the <code>runs</code> row checked against its <code>rev</code>, plus the step row, timer and outbox message in the same transaction. An outbox relay reads new outbox rows from DynamoDB Streams and publishes them to their queues, so a message is sent if and only if its transition was saved. Templates such as <code>{{steps.create_task.output.Id}}</code> are resolved by the executor when the step runs, from stored step outputs, so a run that sleeps for days still has everything it needs.</p>
+</section>
+
+<section id="reliability">
+  <h2>Queues, retries &amp; recovery</h2>
+  <p>Two kinds of queue, each used for what it does best. <b>Kafka topics</b> carry events and commands, where ordering and partition ownership matter. <b>SQS work queues</b> carry tasks for workers, where per-task visibility timeouts, delayed redelivery and thousands of small per-connector queues matter.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Queue</th><th>Type</th><th>Key</th><th>Producer → consumer</th></tr></thead>
+    <tbody>
+      <tr><td><code>trigger-events</code></td><td>Kafka</td><td><code>workflowId</code></td><td>Trigger plane → orchestrator</td></tr>
+      <tr><td><code>run-commands</code></td><td>Kafka</td><td><code>runId</code></td><td>Connector Runtime, Agent Runtime, timer scanners and correlation → orchestrator. The partition owner is the run's only writer.</td></tr>
+      <tr><td><code>agent-commands</code></td><td>Kafka</td><td>session</td><td>Model workers (turn results), Connector Runtime (tool results), approvals and session timers → Agent Runtime. The partition owner is the session's only writer.</td></tr>
+      <tr><td><code>step-tasks</code></td><td>SQS</td><td>one per executor or connector, and plan tier</td><td>Orchestrator → executors: Connector Runtime, sandbox, Agent Runtime. Agent tool calls use the same queues, with replies sent to <code>agent-commands</code>.</td></tr>
+      <tr><td><code>agent-llm</code></td><td>SQS</td><td>one per plan tier</td><td>Agent Runtime session loop → its model workers, one message per model turn</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Workers and retries</h3>
+  <ul>
+    <li><b>Visibility timeout.</b> A worker holds a task for the step's time limit plus a margin and acknowledges it only after the result is on <code>run-commands</code>. If the worker dies, the task becomes visible again.</li>
+    <li><b>Classification.</b> The manifest's <code>errors</code> section marks responses as retryable (429, 5xx, timeout), auth, or fatal.</li>
+    <li><b>Backoff without sleeping.</b> The orchestrator writes a timer for <code>next_retry_at</code> (exponential with jitter, honoring <code>Retry-After</code>). When it fires, attempt N+1 runs as a new <code>step_executions</code> row.</li>
+    <li><b>Out of retries.</b> The step's <code>onError</code> policy applies: <code>fail_run</code> or <code>continue</code>.</li>
+    <li><b>Agent turns.</b> A model API error (429, 5xx, timeout) retries that one turn with backoff, and a tool error retries that one call. Neither restarts the session.</li>
+  </ul>
+  <h3>Idempotency at every layer</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Duplicate source</th><th>Guard</th></tr></thead>
+    <tbody>
+      <tr><td>The same trigger event twice</td><td><code>eventId</code> and the conditional insert into <code>run_by_event</code></td></tr>
+      <tr><td>Two orchestrators advancing one run</td><td>The <code>rev</code> check on every <code>runs</code> write</td></tr>
+      <tr><td>A message re-sent after a crash</td><td>Deterministic message ids such as <code>R1:notify:1</code>, deduplicated by consumers</td></tr>
+      <tr><td>A model turn re-run after a crash</td><td>The stored <code>model_response</code> in <code>agent_events</code> is replayed; the model is never asked the same turn again</td></tr>
+      <tr><td>A side effect repeated after a worker crash</td><td>The <code>action_ledger</code> claim, the provider's idempotency key where supported, and a lookup before retrying where it isn't</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Failures and recovery</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Failure</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td>Worker crash</td><td>The task is redelivered after its timeout. The ledger prevents a double side effect.</td></tr>
+      <tr><td>Orchestrator crash</td><td>Kafka moves its partitions. The new owner replays from the last committed offset and skips transitions already applied.</td></tr>
+      <tr><td>A message that keeps failing</td><td>After N attempts it goes to a dead-letter queue and the run is marked <code>failed</code> with a reason.</td></tr>
+      <tr><td>Provider outage</td><td>Retries back off. Repeated failures auto-pause the workflow and alert the user.</td></tr>
+      <tr><td>Model API outage</td><td>Agent turns back off and retry. If the outage outlasts the session timeout, the step ends <code>limit_exceeded</code> and follows its <code>onError</code> policy. Other steps are unaffected.</td></tr>
+      <tr><td>Recovery by the user</td><td>Replay from the failed step, reusing stored outputs of earlier steps.</td></tr>
+      <tr><td>Platform downtime</td><td>Pollers resume from their cursors, timer scanners catch up on missed buckets, and webhook providers retry on their own.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="integrations">
+  <h2>Integrations &amp; credentials</h2>
+  <ul>
+    <li><b>Connectors.</b> Each provider is a versioned manifest plus a signed, content-addressed code bundle in S3. Every workflow version pins the connector versions it was published with.</li>
+    <li><b>Connecting an account.</b> OAuth2 uses the authorization code flow with PKCE through the platform's OAuth app for that provider. API keys and basic auth are form fields. The Connection Service runs a test call to confirm the connection works.</li>
+    <li><b>Storage.</b> Envelope encryption: a token is encrypted with the account's DEK. The DEK is wrapped by the region's KMS key with <code>account_id</code> as encryption context. There are a few KMS keys per region, not one per account, and dedicated keys only for enterprise customers who bring their own. The database holds only ciphertext, and deleting an account's wrapped DEK makes all its secrets unreadable.</li>
+    <li><b>Platform secrets.</b> OAuth app client secrets, model provider API keys and app-level webhook secrets live in Secrets Manager. Each is readable only by the one service that needs it. Infrastructure access uses IAM authentication where it exists, so most services hold no password at all.</li>
+    <li><b>Webhook signing secrets.</b> Per subscription, encrypted with the account's DEK like any user secret. Besides the runtime host and the Connection Service, Webhook Ingress is the only service allowed to decrypt, and only these secrets, which it caches for a few minutes.</li>
+    <li><b>Use at runtime.</b> Workers prove their identity to KMS through workload identity (IRSA) and may only call <code>Decrypt</code>, with <code>account_id</code> as the encryption context. The runtime host adds the <code>Authorization</code> header outside the sandbox, so connector code never sees a token.</li>
+    <li><b>Refresh.</b> The Connection Service is the only writer of tokens. It refreshes ahead of expiry and takes a per-connection lock when a worker reports a 401. <code>invalid_grant</code> marks the connection revoked and pauses the workflows that use it.</li>
+    <li><b>Provider limits.</b> Token buckets per connection and per OAuth app, and queues per connector, so a slow provider affects only its own work.</li>
+    <li><b>Webhooks.</b> Registered and removed automatically on publish and unpublish. A renewal job handles subscriptions that expire, and a reconcile job re-creates any that go missing.</li>
+    <li><b>Model provider.</b> Model workers call the model API through the egress proxy with a platform key that never enters a sandbox. Prompts carry one tenant's data only, under provider terms that exclude training on it and with zero retention where offered. Tool results are cut to the action's output schema before they reach the model.</li>
+  </ul>
+</section>
+
+<section id="sandbox">
+  <h2>Custom code sandbox</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Control</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td>Isolation</td><td>Firecracker microVMs, or gVisor for Python. Never shared across tenants, and each invocation starts from a clean snapshot. V8 isolates are an option for JavaScript-only, lower-risk tiers.</td></tr>
+      <tr><td>Resources</td><td>CPU time limit (for example 30 s), 256 MB memory cap, output size cap, process count limit. Exceeding one kills the code and fails the step as fatal, with no retry.</td></tr>
+      <tr><td>Network</td><td>Denied by default. Allowed calls go through the egress proxy, which blocks cloud metadata (<code>169.254.169.254</code>), private ranges and internal services, and applies rate limits.</td></tr>
+      <tr><td>Data in</td><td>Only the fields mapped into the step's <code>input</code>. No access to the rest of the run context or to any credentials.</td></tr>
+      <tr><td>Data out</td><td>JSON only, validated before it's stored.</td></tr>
+      <tr><td>Filesystem</td><td>Temporary and discarded after the run. Nothing persists between runs.</td></tr>
+      <tr><td>Dependencies</td><td>A fixed allowlist of libraries preinstalled in the image. No package installs at runtime.</td></tr>
+      <tr><td>Abuse</td><td>Per-account quotas on code CPU-seconds, plus monitoring for crypto-mining patterns.</td></tr>
+      <tr><td>Agents</td><td>An agent can run code only if a code action is in its tool allowlist. That code runs in this same sandbox, with the agent's arguments as its only input.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="isolation">
+  <h2>Isolation &amp; fairness</h2>
+  <ul>
+    <li><code>trigger-events</code> is partitioned by <code>workflowId</code>, which keeps per-workflow ordering and concurrency limits in one place. <code>run-commands</code> is partitioned by <code>runId</code>, so a busy workflow's runs spread across all orchestrator instances.</li>
+    <li>Separate step queues per plan tier and per connector. A slow Salesforce API only holds up Salesforce tasks.</li>
+    <li>Redis token buckets per connection and per provider app, matched to provider quotas. A task without a token is re-queued with a delay instead of holding a worker.</li>
+    <li>Weighted fair scheduling per tenant, so a burst of 1M events from one user can't starve others.</li>
+    <li>A task counter enforces plan quotas. One billable task is one successful action, whatever its executor, or one successful agent tool call.</li>
+    <li>Agents get their own limits: a monthly token and cost budget per account, a cap on concurrent agent sessions per tenant, and <code>agent-llm</code> queues per plan tier, since one session can hold capacity for minutes.</li>
+  </ul>
+</section>
+
+<section id="scale">
+  <h2>Scale &amp; bottlenecks</h2>
+  <div class="nums">
+    <div><b>50k/s</b><span>peak step rate</span></div>
+    <div><b>~250k/s</b><span>peak run-store writes (4–5 per step)</span></div>
+    <div><b>~5 TB</b><span>payloads per day at ~5 KB per step, ~150 TB at 30 days</span></div>
+  </div>
+  <p>Ingress, workers, orchestrator instances (up to the partition count) and pollers (by shard count) all scale horizontally. The bottlenecks below are listed with the most likely first.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Bottleneck</th><th>Why</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Provider rate limits</td><td>The shared OAuth app quota is the real limit for popular connectors</td><td>Per-app token buckets, batch APIs, quota raises from providers, spreading load</td></tr>
+      <tr><td>2</td><td>Model API limits and cost</td><td>Agent workloads hit the model provider's rate limits and token bills before anything else</td><td>Per-tier and per-account budgets, prompt caching of tool specs and instructions, smaller models for simple turns, reserved capacity</td></tr>
+      <tr><td>3</td><td>Polling volume</td><td>About 17k polls per second (5M polling subscriptions at a 5-minute interval), most finding nothing</td><td>Use webhooks wherever the provider offers them; poll quiet subscriptions less often</td></tr>
+      <tr><td>4</td><td>Time spikes</td><td>Many schedules at 09:00 or on the hour</td><td>Timer shards, small jitter, scaling workers ahead of known peaks</td></tr>
+      <tr><td>5</td><td>Run store write cost</td><td>200k+ writes per second is the largest infrastructure bill</td><td>Payloads in S3, plain conditional writes where a transaction isn't needed, TTLs</td></tr>
+      <tr><td>6</td><td>Long agent sessions</td><td>Each session runs many turns, each a queue round trip and a growing transcript</td><td>Summarize or trim old turns, parallel tool calls per turn, transcripts in S3 with only references in rows</td></tr>
+      <tr><td>7</td><td>Noisy tenants</td><td>One account's burst fills shared queues</td><td>Fair scheduling per tenant, concurrency limits, queues per plan tier</td></tr>
+      <tr><td>8</td><td>Hot workflows</td><td>One workflow with a huge event rate</td><td><code>run-commands</code> is keyed by <code>runId</code>, so its runs spread across partitions</td></tr>
+      <tr><td>9</td><td>Kafka partition count</td><td>Caps orchestrator parallelism</td><td>Start with 512+ partitions; topics per region</td></tr>
+      <tr><td>10</td><td>Connector cold starts</td><td>First run of a rare connector on a node</td><td>Node bundle cache, pre-warming popular connectors</td></tr>
+      <tr><td>11</td><td>Log volume</td><td>Every step and agent turn produces run-history events</td><td>ClickHouse partitions and TTL, sampled debug detail</td></tr>
+      <tr><td>12</td><td>KMS calls</td><td>One per secret would be too many</td><td>DEK cache per account, so calls grow with active accounts, not steps</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Regions and availability</h3>
+  <ul>
+    <li><b>Home region per account.</b> Each account lives in one region, which also covers data residency such as EU-only. A region runs the full stack: ingress, Kafka, SQS, workers, Postgres, DynamoDB and S3.</li>
+    <li><b>Routing.</b> Webhook URLs and API calls carry the region, for example <code>hooks.eu.platform.com</code>, so events land where their runs live and never cross regions.</li>
+    <li><b>Within a region.</b> Every component runs across three availability zones. Losing one zone loses no data and needs no manual action.</li>
+    <li><b>Disaster recovery.</b> Postgres replicas and DynamoDB global tables in a paired region, with point-in-time recovery for both. Kafka topics are mirrored and S3 buckets replicated to the same paired region. Writes are only ever made in the home region, which keeps conditional writes correct. Failing over moves an account's home region; consumers resume from mirrored offsets, and <code>run_by_event</code> drops any event processed twice across the switch.</li>
+  </ul>
+</section>
+
+<section id="storage">
+  <h2>Storage</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Data</th><th>Store</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Workflow definitions, versions, users, connection metadata</td><td>Postgres</td><td>Relational, transactional</td></tr>
+      <tr><td>Connector registry: connectors, versions and their manifests</td><td>Postgres (<code>connectors</code>, <code>connector_versions</code>), each version pointing to its bundle in the S3 artifact store</td><td>Read at publish and when the builder loads forms; cached, since a published version never changes</td></tr>
+      <tr><td>Runs and step state</td><td>DynamoDB, keyed by <code>runId</code>, indexed by <code>(workflowId, time)</code></td><td>High write rate; TTL by retention plan</td></tr>
+      <tr><td>Agent sessions and tool-call history</td><td>DynamoDB (<code>agent_sessions</code>, <code>agent_events</code>), with large turns in S3</td><td>Same retention and keys as the run they belong to</td></tr>
+      <tr><td>Payloads, large outputs and agent transcripts</td><td>S3 with TTL</td><td>Cheap blob storage</td></tr>
+      <tr><td>Poll cursors, subscriptions, shard epochs</td><td>Postgres (<code>poll_state</code>, <code>trigger_subscriptions</code>, <code>shard_epochs</code>)</td><td>Durable, and fenced by epoch</td></tr>
+      <tr><td>Timers, idempotency ledger, outbox, correlation waits</td><td>DynamoDB (<code>timers</code>, <code>action_ledger</code>, <code>outbox</code>, <code>waits_by_correlation</code>)</td><td>Written in the same transaction as the run they belong to</td></tr>
+      <tr><td>Seen-ID sets, rate-limit buckets, quota counters, shard leases, token refresh locks</td><td>Redis</td><td>Fast and short-lived; losing them costs duplicate work, never correctness</td></tr>
+      <tr><td>Connector bundles</td><td>S3 artifact store, signed and content-addressed</td><td>Immutable, cached on each node</td></tr>
+      <tr><td>Secrets</td><td>User secrets as ciphertext in Postgres; regional KMS keys wrap per-account DEKs; platform secrets in Secrets Manager</td><td>No per-secret network reads on the hot path; encryption and audit in KMS</td></tr>
+      <tr><td>Run logs and metrics</td><td>ClickHouse</td><td>Searchable run history, cheap at high volume</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="schemas">
+  <h2>Storage schemas</h2>
+  <p>Only the fields the flows on this page need. Indexes are listed where a query depends on them. <code>ttl</code> means a TTL set from the account's retention plan.</p>
+
+  <h3>What each table is for</h3>
+  <p>Flow numbers refer to <a href="#flows">Concrete flows</a>: 1 webhook, 2 polling, 3 delayed and branching, 4 agentic.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Store</th><th>Table</th><th>Purpose</th><th>Written by, when</th><th>Read by, when</th><th>Flows</th></tr></thead>
+    <tbody>
+      <tr><td>Postgres</td><td><code>accounts</code></td><td>The tenant root: plan, home region, retention and the wrapped DEK</td><td>Signup creates the row and the DEK</td><td>Runtime host and Connection Service to unwrap the DEK; orchestrator for plan limits and retention</td><td>Connect account · every step that uses a credential</td></tr>
+      <tr><td>Postgres</td><td><code>users</code></td><td>People who sign in to an account</td><td>Signup and invites</td><td>API Gateway on every request; <code>published_by</code> on versions</td><td>Builder</td></tr>
+      <tr><td>Postgres</td><td><code>connectors</code></td><td>One catalog entry per provider</td><td>Connector CI on release</td><td>Builder catalog</td><td>Build</td></tr>
+      <tr><td>Postgres</td><td><code>connector_versions</code></td><td>Immutable manifest and bundle hash of each connector version</td><td>Connector CI on release</td><td>Builder forms; publish validation; tool spec generation; runtime loading the bundle by hash</td><td>Publish · 1 · 2 · 3 · 4</td></tr>
+      <tr><td>Postgres</td><td><code>connections</code></td><td>A user's authorized account at a provider, with its secret as ciphertext</td><td>Connection Service on connect, refresh and revoke</td><td>Runtime host before each provider call; refresher by <code>expires_at</code></td><td>Connect account · 1 · 2 · 3 · 4</td></tr>
+      <tr><td>Postgres</td><td><code>workflows</code></td><td>What the user edits: status, active version, draft, settings</td><td>Workflow Service on edit, publish and pause; orchestrator on auto-pause</td><td>Orchestrator on every trigger event (status check); builder</td><td>Publish · event to run</td></tr>
+      <tr><td>Postgres</td><td><code>workflow_versions</code></td><td>The immutable published definition that runs are pinned to</td><td>Workflow Service on publish</td><td>Orchestrator and workers on every step, cached forever</td><td>1 · 2 · 3 · 4</td></tr>
+      <tr><td>Postgres</td><td><code>workflow_connections</code></td><td>Which workflows use which connection</td><td>Workflow Service on publish</td><td>Connection Service on revoke, to pause the affected workflows</td><td>Revoke</td></tr>
+      <tr><td>Postgres</td><td><code>trigger_subscriptions</code></td><td>The active trigger of each workflow: kind, config, webhook registration, signing secret, shard</td><td>Workflow Service on publish and unpublish</td><td>Webhook Ingress to route and verify; pollers and timer scanners by shard</td><td>1 · 2 · schedule</td></tr>
+      <tr><td>Postgres</td><td><code>poll_state</code></td><td>Cursor and next poll time of each polling subscription</td><td>Poller after each poll, fenced by epoch</td><td>Poller that owns the shard</td><td>2</td></tr>
+      <tr><td>Postgres</td><td><code>shard_epochs</code></td><td>Fencing counter for each poller shard</td><td>A poller taking over a shard lease</td><td>Every <code>poll_state</code> cursor write, as its condition</td><td>2</td></tr>
+      <tr><td>Postgres</td><td><code>usage_periods</code></td><td>Billing totals per account and period</td><td>Flushed from the Redis quota counters</td><td>Billing; quota checks</td><td>Billing</td></tr>
+      <tr><td>DynamoDB</td><td><code>runs</code></td><td>One execution: status, cursor, pinned version, <code>rev</code></td><td>Orchestrator only, on every transition, conditional on <code>rev</code></td><td>Orchestrator; Run History API through its GSIs</td><td>1 · 2 · 3 · 4</td></tr>
+      <tr><td>DynamoDB</td><td><code>run_by_event</code></td><td>Guarantees one run per trigger event</td><td>Orchestrator, a conditional insert when creating a run</td><td>The same insert, which fails for a duplicate</td><td>1 · 2 · schedule</td></tr>
+      <tr><td>DynamoDB</td><td><code>step_executions</code></td><td>One row per attempt of each step, including agent tool calls, with inputs and outputs</td><td>Orchestrator (pending rows, decision outcomes); executors (results); Agent Runtime (tool-call child rows)</td><td>Workers resolving templates; run history; replay from a failed step</td><td>1 · 2 · 3 · 4</td></tr>
+      <tr><td>DynamoDB</td><td><code>action_ledger</code></td><td>Stops a side effect from running twice</td><td>Connector Runtime before and after the provider call</td><td>Connector Runtime on a redelivered task</td><td>1 · 2 · 3 · 4</td></tr>
+      <tr><td>DynamoDB</td><td><code>timers</code></td><td>Durable timers: schedules, delays, retries, timeouts</td><td>Workflow Service and scanners (schedules); orchestrator (delays, retries, timeouts); Agent Runtime (session timeouts)</td><td>Timer scanners, one minute bucket at a time</td><td>Schedule · 3 · retries · 4</td></tr>
+      <tr><td>DynamoDB</td><td><code>waits_by_correlation</code></td><td>Runs waiting for an outside event</td><td>Orchestrator at a wait-for-event step</td><td>Orchestrator when a matching event arrives</td><td>Wait for event</td></tr>
+      <tr><td>DynamoDB</td><td><code>outbox</code></td><td>Messages to send, written in the same transaction as the state change</td><td>Orchestrator and Agent Runtime</td><td>Outbox relay, through DynamoDB Streams</td><td>Every hand-off to a queue</td></tr>
+      <tr><td>DynamoDB</td><td><code>agent_sessions</code></td><td>State of one agent action attempt: status, turn, counters, limits</td><td>Agent Runtime on every turn, conditional on <code>rev</code></td><td>Agent Runtime, including its policy gate for limits</td><td>4</td></tr>
+      <tr><td>DynamoDB</td><td><code>agent_events</code></td><td>Ordered agent history: model responses, tool calls, gate decisions, approvals</td><td>Agent Runtime: model workers (responses), session loop (calls and gate decisions)</td><td>Model workers to build the transcript; the session loop after a crash; run view</td><td>4</td></tr>
+      <tr><td>ClickHouse</td><td><code>run_events</code></td><td>Searchable run history and metrics</td><td>Every execution component emits events</td><td>Run History API search; dashboards; health alerts</td><td>All flows</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Postgres: definitions, accounts, connections, trigger state</h3>
+<pre class="code"><code>accounts              id PK · plan · home_region · retention_days · wrapped_dek
+users                 id PK · account_id FK · email UNIQUE
+
+connectors            id PK · latest_version · owner_team
+connector_versions    (connector_id, version) PK · manifest jsonb · bundle_hash
+
+connections           id PK · account_id FK · connector_id FK · status · encrypted_secret · expires_at
+                      INDEX (expires_at) WHERE status = 'active'          -- token refresher
+
+workflows             id PK · account_id FK · status · active_version · draft_definition jsonb · settings jsonb
+                      INDEX (account_id, status)
+workflow_versions     (workflow_id, version) PK · definition jsonb · connector_versions jsonb · published_at
+workflow_connections  (workflow_id, connection_id) PK
+                      INDEX (connection_id)                                -- revoke → affected workflows
+
+trigger_subscriptions id PK · workflow_id FK · version · kind · connection_id · config jsonb
+                      · external_hook_id · encrypted_signing_secret · shard
+                      INDEX (kind, shard)
+poll_state            subscription_id PK · cursor · next_poll_at · lease_epoch
+shard_epochs          shard PK · epoch                                     -- poller shards only
+
+usage_periods         (account_id, period_start) PK · tasks_used · tokens_used · cost_usd</code></pre>
+
+  <h3>DynamoDB: runs, steps and everything written with them</h3>
+<pre class="code"><code>runs                  PK run_id
+                      workflow_id · workflow_version · account_id · event_id · status · current_step
+                      · rev · trigger_payload_ref · error_code · billed_tasks · started_at · finished_at · ttl
+                      GSI1  PK workflow_id#yyyy-mm-dd   SK started_at   -- run history
+                      GSI2  PK account_id#status        SK started_at   -- failed / waiting runs
+
+run_by_event          PK workflow_id#event_id
+                      run_id · ttl (7 days)
+
+step_executions       PK run_id   SK step_id#attempt
+                      status · input | input_ref · output | output_ref · error_code · next_retry_at · ttl
+
+action_ledger         PK run_id#step_id
+                      state (claimed | done) · provider_ref · ttl
+
+timers                PK yyyy-mm-ddThh:mm#shard   SK fire_at#timer_id
+                      kind (schedule | delay | retry | wait_timeout | session_timeout)
+                      · run_id | subscription_id · step_id
+
+waits_by_correlation  PK correlation_key   SK run_id
+                      step_id · expires_at
+
+outbox                PK run_id   SK message_id
+                      queue · payload · ttl                                -- read by the relay via DynamoDB Streams
+
+agent_sessions        PK run_id#step_id#attempt
+                      status · turn · rev · limits map · counters map · tool_specs_ref · output · ttl
+
+agent_events          PK run_id#step_id#attempt   SK seq
+                      type · turn · content | content_ref · tokens_in · tokens_out · ttl</code></pre>
+
+  <h3>Redis: fast state whose loss costs only duplicate work</h3>
+<pre class="code"><code>poll:seen:{subscription_id}       ZSET    member = record id, score = record time   (trimmed to the overlap window)
+hook:{subscription_id}            HASH    workflow_id · version · status            (ingress routing, 10 min)
+rl:conn:{connection_id}           HASH    tokens · refilled_at                      (token bucket)
+rl:app:{connector_id}             HASH    tokens · refilled_at
+quota:{account_id}:{period}       HASH    tasks · tokens · cost                     (flushed to usage_periods)
+fail:{workflow_id}                INT     failed runs in a row on the active version
+lease:{scanner}:{shard}           STRING  owner id, SET NX PX 15000
+lock:refresh:{connection_id}      STRING  owner id, SET NX PX 10000</code></pre>
+
+  <h3>S3: payloads and connector bundles</h3>
+<pre class="code"><code>s3://wf-payloads-{region}/ret-{days}d/{account_id}/{yyyy}/{mm}/{dd}/{run_id}/
+    trigger.json
+    steps/{step_id}/{attempt}/input.json | output.json
+    agent/{step_id}/{attempt}/{seq}.json
+                                            (lifecycle expiry per ret-{days}d prefix, SSE-KMS)
+
+s3://wf-artifacts/bundles/sha256/{hash}.tgz
+s3://wf-artifacts/bundles/sha256/{hash}.tgz.sig       (Object Lock, never overwritten)</code></pre>
+
+  <h3>KMS and Secrets Manager</h3>
+<pre class="code"><code>KMS   alias/wf-{region}-accounts      symmetric · wraps account DEKs · encryption context {account_id}
+KMS   alias/wf-bundle-signing         asymmetric · sign: CI role only · verify: public key
+
+Secrets Manager
+      oauth-apps/{connector}          client_id · client_secret          (Connection Service)
+      app-webhooks/{connector}        signing_secret                     (Webhook Ingress)
+      model-providers/{provider}      api_key                            (model workers)</code></pre>
+
+  <h3>ClickHouse: run history and metrics</h3>
+<pre class="code"><code>run_events   event_time · account_id · workflow_id · run_id · step_id · event_type
+             · status · duration_ms · error_code · message
+             ENGINE MergeTree  PARTITION BY day  ORDER BY (account_id, workflow_id, event_time)  TTL by plan</code></pre>
+</section>
+
+<section id="data-model">
+  <h2>Data model</h2>
+  <p>Four entities hold the core of the platform, and agent steps add two more (below). A <b>workflow</b> is what the user edits. A <b>workflow version</b> is an immutable snapshot of it, made at publish. Each trigger event creates a <b>run</b> (an execution) pinned to one version, and a run has one <b>step execution</b> row per attempt of each step.</p>
+  <div class="diagram wide">
+<svg class="arch er" viewBox="0 0 1090 420" role="img" aria-label="Entity diagram: workflows, workflow_versions, runs, step_executions">
+<rect class="box n" x="20" y="40" width="230" height="360" rx="8"/>
+<rect class="box n" x="20" y="40" width="230" height="50" rx="8"/>
+<text class="ent" x="34" y="63">workflows</text><text class="sub" x="34" y="81">Postgres</text>
+<text class="key" x="34" y="116">PK</text>
+<text class="fld" x="64" y="116">id</text><text class="typ" x="236" y="116" text-anchor="end">uuid</text>
+<text class="key" x="34" y="138">FK</text>
+<text class="fld" x="64" y="138">account_id</text><text class="typ" x="236" y="138" text-anchor="end">uuid</text>
+<text class="fld" x="64" y="160">name</text><text class="typ" x="236" y="160" text-anchor="end">text</text>
+<text class="fld" x="64" y="182">status</text><text class="typ" x="236" y="182" text-anchor="end">enum</text>
+<text class="key" x="34" y="204">FK</text>
+<text class="fld" x="64" y="204">active_version</text><text class="typ" x="236" y="204" text-anchor="end">int</text>
+<text class="fld" x="64" y="226">draft_definition</text><text class="typ" x="236" y="226" text-anchor="end">jsonb</text>
+<text class="fld" x="64" y="248">settings</text><text class="typ" x="236" y="248" text-anchor="end">jsonb</text>
+<text class="fld" x="64" y="270">created_by</text><text class="typ" x="236" y="270" text-anchor="end">uuid</text>
+<text class="fld" x="64" y="292">updated_at</text><text class="typ" x="236" y="292" text-anchor="end">timestamp</text>
+<path class="ln" d="M250 65H296"/>
+<text class="card" x="256" y="59">1</text><text class="card" x="290" y="59" text-anchor="end">N</text>
+<rect class="box n" x="296" y="40" width="230" height="360" rx="8"/>
+<rect class="box n" x="296" y="40" width="230" height="50" rx="8"/>
+<text class="ent" x="310" y="63">workflow_versions</text><text class="sub" x="310" y="81">Postgres · immutable</text>
+<text class="key" x="310" y="116">PK</text>
+<text class="fld" x="340" y="116">workflow_id</text><text class="typ" x="512" y="116" text-anchor="end">uuid</text>
+<text class="key" x="310" y="138">PK</text>
+<text class="fld" x="340" y="138">version</text><text class="typ" x="512" y="138" text-anchor="end">int</text>
+<text class="fld" x="340" y="160">definition</text><text class="typ" x="512" y="160" text-anchor="end">jsonb</text>
+<text class="fld" x="340" y="182">connector_versions</text><text class="typ" x="512" y="182" text-anchor="end">jsonb</text>
+<text class="fld" x="340" y="204">trigger_kind</text><text class="typ" x="512" y="204" text-anchor="end">enum</text>
+<text class="fld" x="340" y="226">change_note</text><text class="typ" x="512" y="226" text-anchor="end">text</text>
+<text class="fld" x="340" y="248">published_by</text><text class="typ" x="512" y="248" text-anchor="end">uuid</text>
+<text class="fld" x="340" y="270">published_at</text><text class="typ" x="512" y="270" text-anchor="end">timestamp</text>
+<path class="ln" d="M526 65H572"/>
+<text class="card" x="532" y="59">1</text><text class="card" x="566" y="59" text-anchor="end">N</text>
+<rect class="box n" x="572" y="40" width="230" height="360" rx="8"/>
+<rect class="box d" x="572" y="40" width="230" height="50" rx="8"/>
+<text class="ent" x="586" y="63">runs</text><text class="sub" x="586" y="81">DynamoDB · executions</text>
+<text class="key" x="586" y="116">PK</text>
+<text class="fld" x="616" y="116">run_id</text><text class="typ" x="788" y="116" text-anchor="end">uuid</text>
+<text class="key" x="586" y="138">FK</text>
+<text class="fld" x="616" y="138">workflow_id</text><text class="typ" x="788" y="138" text-anchor="end">uuid</text>
+<text class="key" x="586" y="160">FK</text>
+<text class="fld" x="616" y="160">workflow_version</text><text class="typ" x="788" y="160" text-anchor="end">int</text>
+<text class="fld" x="616" y="182">account_id</text><text class="typ" x="788" y="182" text-anchor="end">uuid</text>
+<text class="key" x="586" y="204">UQ</text>
+<text class="fld" x="616" y="204">event_id</text><text class="typ" x="788" y="204" text-anchor="end">text</text>
+<text class="fld" x="616" y="226">status</text><text class="typ" x="788" y="226" text-anchor="end">enum</text>
+<text class="fld" x="616" y="248">current_step</text><text class="typ" x="788" y="248" text-anchor="end">text</text>
+<text class="fld" x="616" y="270">rev</text><text class="typ" x="788" y="270" text-anchor="end">int</text>
+<text class="fld" x="616" y="292">trigger_payload_ref</text><text class="typ" x="788" y="292" text-anchor="end">text</text>
+<text class="fld" x="616" y="314">error_code</text><text class="typ" x="788" y="314" text-anchor="end">text</text>
+<text class="fld" x="616" y="336">billed_tasks</text><text class="typ" x="788" y="336" text-anchor="end">int</text>
+<text class="fld" x="616" y="358">started_at</text><text class="typ" x="788" y="358" text-anchor="end">timestamp</text>
+<text class="fld" x="616" y="380">finished_at</text><text class="typ" x="788" y="380" text-anchor="end">timestamp</text>
+<path class="ln" d="M802 65H848"/>
+<text class="card" x="808" y="59">1</text><text class="card" x="842" y="59" text-anchor="end">N</text>
+<rect class="box n" x="848" y="40" width="230" height="360" rx="8"/>
+<rect class="box x" x="848" y="40" width="230" height="50" rx="8"/>
+<text class="ent" x="862" y="63">step_executions</text><text class="sub" x="862" y="81">DynamoDB</text>
+<text class="key" x="862" y="116">PK</text>
+<text class="fld" x="892" y="116">run_id</text><text class="typ" x="1064" y="116" text-anchor="end">uuid</text>
+<text class="key" x="862" y="138">PK</text>
+<text class="fld" x="892" y="138">step_id</text><text class="typ" x="1064" y="138" text-anchor="end">text</text>
+<text class="key" x="862" y="160">PK</text>
+<text class="fld" x="892" y="160">attempt</text><text class="typ" x="1064" y="160" text-anchor="end">int</text>
+<text class="fld" x="892" y="182">status</text><text class="typ" x="1064" y="182" text-anchor="end">enum</text>
+<text class="fld" x="892" y="204">input / input_ref</text><text class="typ" x="1064" y="204" text-anchor="end">json|s3</text>
+<text class="fld" x="892" y="226">output / output_ref</text><text class="typ" x="1064" y="226" text-anchor="end">json|s3</text>
+<text class="fld" x="892" y="248">error_code</text><text class="typ" x="1064" y="248" text-anchor="end">text</text>
+<text class="fld" x="892" y="270">error_message</text><text class="typ" x="1064" y="270" text-anchor="end">text</text>
+<text class="fld" x="892" y="292">provider_ref</text><text class="typ" x="1064" y="292" text-anchor="end">text</text>
+<text class="fld" x="892" y="314">idempotency_key</text><text class="typ" x="1064" y="314" text-anchor="end">text</text>
+<text class="fld" x="892" y="336">next_retry_at</text><text class="typ" x="1064" y="336" text-anchor="end">timestamp</text>
+<text class="fld" x="892" y="358">started_at</text><text class="typ" x="1064" y="358" text-anchor="end">timestamp</text>
+<text class="fld" x="892" y="380">finished_at</text><text class="typ" x="1064" y="380" text-anchor="end">timestamp</text>
+<path class="ln dash" d="M135 400V412H687V402"/><text class="note" x="411" y="410" text-anchor="middle">1 workflow → N runs (runs.workflow_id)</text>
+</svg>
+  </div>
+  <p class="cap">PK primary key · FK foreign key · UQ unique (enforced through the <code>run_by_event</code> conditional insert). Inputs and outputs over 256 KB move to S3 and the row keeps a <code>*_ref</code>.</p>
+
+  <h3>Keys and access patterns</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Need</th><th>Table</th><th>Key or index</th></tr></thead>
+    <tbody>
+      <tr><td>List an account's workflows</td><td><code>workflows</code></td><td>index <code>(account_id, status)</code></td></tr>
+      <tr><td>Load the definition a run is pinned to</td><td><code>workflow_versions</code></td><td>PK <code>(workflow_id, version)</code>, cached by workers since rows never change</td></tr>
+      <tr><td>Create exactly one run per trigger event</td><td><code>run_by_event</code></td><td>PK <code>workflow_id#event_id</code>, conditional insert <code>attribute_not_exists</code></td></tr>
+      <tr><td>Load and advance a run</td><td><code>runs</code></td><td>PK <code>run_id</code>, every write conditional on <code>rev</code></td></tr>
+      <tr><td>Run history for one workflow, newest first</td><td><code>runs</code></td><td>GSI1: PK <code>workflow_id#yyyy-mm-dd</code>, SK <code>started_at</code></td></tr>
+      <tr><td>Failed or waiting runs across an account</td><td><code>runs</code></td><td>GSI2: PK <code>account_id#status</code>, SK <code>started_at</code></td></tr>
+      <tr><td>An agent session's transcript, in order</td><td><code>agent_events</code></td><td>PK <code>run_id#step_id#attempt</code>, SK <code>seq</code></td></tr>
+      <tr><td>A run's step timeline, and replay from a failed step</td><td><code>step_executions</code></td><td>PK <code>run_id</code>, SK <code>step_id#attempt</code> (zero-padded attempt)</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Lifecycles</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Entity</th><th>Statuses</th><th>Transitions</th></tr></thead>
+    <tbody>
+      <tr><td><code>workflows</code></td><td><span class="st">draft</span> <span class="st ok">active</span> <span class="st warn">paused</span> <span class="st bad">error</span> <span class="st">archived</span></td><td>draft → active on first publish. active ⇄ paused by the user. active → error on auto-pause after repeated failures. Any → archived on delete.</td></tr>
+      <tr><td><code>workflow_versions</code></td><td>none</td><td>Never updated. A new publish adds a row and moves <code>workflows.active_version</code>.</td></tr>
+      <tr><td><code>runs</code></td><td><span class="st">pending</span> <span class="st">running</span> <span class="st warn">waiting</span> <span class="st ok">succeeded</span> <span class="st">filtered</span> <span class="st bad">failed</span> <span class="st">cancelled</span></td><td>pending while the workflow is at its concurrency limit. running ⇄ waiting for delays, wait-for-event steps and agent approvals. The last four are terminal. A replay of a failed run moves it back to running from the failed step.</td></tr>
+      <tr><td><code>step_executions</code></td><td><span class="st">pending</span> <span class="st">running</span> <span class="st warn">waiting</span> <span class="st ok">succeeded</span> <span class="st bad">failed</span></td><td>A retry writes a new row with <code>attempt + 1</code>, so earlier attempts stay for the audit trail. Steps on paths a branch didn't take have no row; the run view shows them as skipped, derived from the branch's recorded outcome.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Agent steps</h3>
+  <p>An agent action adds two tables next to its <code>step_executions</code> row, both written by the Agent Runtime. <code>agent_sessions</code> holds one row per attempt with status, counters and the limits snapshot, and <code>agent_events</code> holds the ordered history of model turns, tool calls, gate decisions and approvals. Each tool call is also a child <code>step_executions</code> row with an id such as <code>resolve_request.t2.c1</code>, so it appears in the run timeline. Details are in <a href="#agentic">Agentic actions</a>.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Relationship</th><th>Cardinality</th></tr></thead>
+    <tbody>
+      <tr><td><code>step_executions</code> (agent action attempt) → <code>agent_sessions</code></td><td>1 : 1</td></tr>
+      <tr><td><code>agent_sessions</code> → <code>agent_events</code></td><td>1 : N, ordered by <code>seq</code></td></tr>
+      <tr><td><code>agent_sessions</code> → child <code>step_executions</code> (tool calls)</td><td>1 : N</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Rules that keep the model consistent</h3>
+  <ul>
+    <li><b>Versions are immutable.</b> Edits change only <code>workflows.draft_definition</code>. Publishing validates the draft and inserts the next <code>workflow_versions</code> row in the same transaction that updates <code>active_version</code>.</li>
+    <li><b>A run never changes version.</b> <code>runs.workflow_version</code> is set at creation, so a run that sleeps for days still finishes on the definition it started with.</li>
+    <li><b>Step ids come from the definition.</b> <code>step_executions.step_id</code> matches a step <code>id</code> in the pinned version, which is how the UI lines up the timeline with the workflow it ran.</li>
+    <li><b>Only the run's owner writes it.</b> Each <code>runs</code> update checks and increments <code>rev</code>, and the step row, timer and outbox message are written in the same <code>TransactWriteItems</code>.</li>
+    <li><b>Billing comes from steps.</b> <code>billed_tasks</code> counts the actions of every executor and the agent tool calls that succeeded. Model tokens are metered separately from <code>agent_sessions</code> counters. Filters, delays and filtered runs are free.</li>
+    <li><b>Retention follows the plan.</b> <code>runs</code>, <code>step_executions</code>, <code>agent_sessions</code> and <code>agent_events</code> carry a TTL from <code>accounts.retention_days</code>. A version can be purged only when no run that has not finished still points at it.</li>
+  </ul>
+</section>
+
+<section id="flows">
+  <h2>Concrete flows</h2>
+  <p>Four flows end to end. Each diagram shows which component owns each step. Dashed arrows are responses.</p>
+
+  <h3>1. Webhook flow</h3>
+  <div class="flow"><span class="chip t">Stripe: Payment Succeeded</span><span class="arrow">→</span><span class="chip a">Salesforce: Update Opportunity</span></div>
+  <div class="diagram wide">
+<svg class="arch seq" viewBox="0 0 1100 576" role="img">
+<defs><marker id="sq1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+<line class="life" x1="70" y1="56" x2="70" y2="568"/>
+<rect class="box ext" x="4" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="70" y="41" text-anchor="middle">Stripe</text>
+<line class="life" x1="230" y1="56" x2="230" y2="568"/>
+<rect class="box t" x="164" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="230" y="41" text-anchor="middle">Webhook Ingress</text>
+<line class="life" x1="390" y1="56" x2="390" y2="568"/>
+<rect class="box b" x="324" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="390" y="41" text-anchor="middle">Kafka</text>
+<line class="life" x1="550" y1="56" x2="550" y2="568"/>
+<rect class="box d" x="484" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="550" y="41" text-anchor="middle">Orchestrator</text>
+<line class="life" x1="710" y1="56" x2="710" y2="568"/>
+<rect class="box s" x="644" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="710" y="41" text-anchor="middle">DynamoDB</text>
+<line class="life" x1="870" y1="56" x2="870" y2="568"/>
+<rect class="box x" x="804" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="870" y="41" text-anchor="middle">Connector Runtime</text>
+<line class="life" x1="1030" y1="56" x2="1030" y2="568"/>
+<rect class="box ext" x="964" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="1030" y="41" text-anchor="middle">Salesforce</text>
+<path class="msg" d="M70 96H228" marker-end="url(#sq1)"/>
+<text class="ml" x="150" y="90" text-anchor="middle">POST /hooks/sub_31_… (evt_1Q)</text>
+<path class="msg" d="M230 120h22v14h-20" marker-end="url(#sq1)"/>
+<text class="ml" x="258" y="131">route via hook:sub_31 · verify HMAC</text>
+<path class="msg" d="M230 160H388" marker-end="url(#sq1)"/>
+<text class="ml" x="310" y="154" text-anchor="middle">TriggerEvent sub_31:evt_1Q</text>
+<path class="msg ret" d="M390 192H232" marker-end="url(#sq1)"/>
+<text class="ml" x="310" y="186" text-anchor="middle">ack</text>
+<path class="msg ret" d="M230 224H72" marker-end="url(#sq1)"/>
+<text class="ml" x="150" y="218" text-anchor="middle">200 OK</text>
+<path class="msg" d="M390 256H548" marker-end="url(#sq1)"/>
+<text class="ml" x="470" y="250" text-anchor="middle">consume (key wf_12)</text>
+<path class="msg" d="M550 288H708" marker-end="url(#sq1)"/>
+<text class="ml" x="630" y="282" text-anchor="middle">run_by_event IF NOT EXISTS</text>
+<path class="msg ret" d="M710 320H552" marker-end="url(#sq1)"/>
+<text class="ml" x="630" y="314" text-anchor="middle">applied → new run R7</text>
+<path class="msg" d="M550 352H708" marker-end="url(#sq1)"/>
+<text class="ml" x="630" y="346" text-anchor="middle">transact: run · step · outbox</text>
+<path class="msg" d="M550 384H868" marker-end="url(#sq1)"/>
+<text class="ml" x="710" y="378" text-anchor="middle">step-tasks: update_opportunity</text>
+<path class="msg" d="M870 408h22v14h-20" marker-end="url(#sq1)"/>
+<text class="ml" x="898" y="419">ledger claim · token added by host</text>
+<path class="msg" d="M870 448H1028" marker-end="url(#sq1)"/>
+<text class="ml" x="950" y="442" text-anchor="middle">PATCH Opportunity 006…</text>
+<path class="msg ret" d="M1030 480H872" marker-end="url(#sq1)"/>
+<text class="ml" x="950" y="474" text-anchor="middle">204</text>
+<path class="msg" d="M870 512H552" marker-end="url(#sq1)"/>
+<text class="ml" x="710" y="506" text-anchor="middle">run-commands: StepCompleted</text>
+<path class="msg" d="M550 544H708" marker-end="url(#sq1)"/>
+<text class="ml" x="630" y="538" text-anchor="middle">R7 succeeded (rev 2 → 3)</text>
+</svg>
+  </div>
+  <ul>
+    <li><b>Store first, then answer.</b> Ingress returns <code>200</code> only after Kafka acknowledges the event. If Kafka is unavailable it returns <code>503</code>, and Stripe's own retry delivers the event later.</li>
+    <li><b>Ingress does no workflow work.</b> It routes, verifies and enqueues, so it stays fast and stateless. A slow Salesforce can never make Stripe time out.</li>
+    <li><b>Duplicates end at one place.</b> Stripe retries arrive with the same <code>evt_</code> id, so the <code>eventId</code> is the same, and the conditional insert into <code>run_by_event</code> drops them.</li>
+    <li><b>The orchestrator never calls a provider.</b> It decides; the Connector Runtime executes. Credentials are added by the runtime host, outside connector code.</li>
+  </ul>
+
+  <h3>2. Polling flow</h3>
+  <div class="flow"><span class="chip t">Salesforce: New Lead</span><span class="arrow">→</span><span class="chip d">Lead Score &gt; 80</span><span class="arrow">→</span><span class="chip a">WhatsApp: Send Message</span></div>
+  <div class="diagram wide">
+<svg class="arch seq" viewBox="0 0 1100 640" role="img">
+<defs><marker id="sq2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+<line class="life" x1="70" y1="56" x2="70" y2="632"/>
+<rect class="box s" x="4" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="70" y="41" text-anchor="middle">Postgres</text>
+<line class="life" x1="207" y1="56" x2="207" y2="632"/>
+<rect class="box t" x="141" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="207" y="41" text-anchor="middle">Poller</text>
+<line class="life" x1="344" y1="56" x2="344" y2="632"/>
+<rect class="box s" x="278" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="344" y="41" text-anchor="middle">Redis</text>
+<line class="life" x1="481" y1="56" x2="481" y2="632"/>
+<rect class="box x" x="415" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="481" y="41" text-anchor="middle">Connector Runtime</text>
+<line class="life" x1="619" y1="56" x2="619" y2="632"/>
+<rect class="box ext" x="553" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="619" y="41" text-anchor="middle">Salesforce</text>
+<line class="life" x1="756" y1="56" x2="756" y2="632"/>
+<rect class="box b" x="690" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="756" y="41" text-anchor="middle">Kafka</text>
+<line class="life" x1="893" y1="56" x2="893" y2="632"/>
+<rect class="box d" x="827" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="893" y="41" text-anchor="middle">Orchestrator</text>
+<line class="life" x1="1030" y1="56" x2="1030" y2="632"/>
+<rect class="box ext" x="964" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="1030" y="41" text-anchor="middle">WhatsApp</text>
+<path class="msg" d="M207 88h22v14h-20" marker-end="url(#sq2)"/>
+<text class="ml" x="235" y="99">lease shard 17 · sub_9 due</text>
+<path class="msg" d="M207 128H479" marker-end="url(#sq2)"/>
+<text class="ml" x="344" y="122" text-anchor="middle">poll(cursor − 5 min)</text>
+<path class="msg" d="M481 160H617" marker-end="url(#sq2)"/>
+<text class="ml" x="550" y="154" text-anchor="middle">SOQL CreatedDate &gt; t</text>
+<path class="msg ret" d="M619 192H483" marker-end="url(#sq2)"/>
+<text class="ml" x="550" y="186" text-anchor="middle">3 leads</text>
+<path class="msg ret" d="M481 224H209" marker-end="url(#sq2)"/>
+<text class="ml" x="344" y="218" text-anchor="middle">items + nextCursor</text>
+<path class="msg" d="M207 256H342" marker-end="url(#sq2)"/>
+<text class="ml" x="276" y="250" text-anchor="middle">ZMSCORE seen ids</text>
+<path class="msg ret" d="M344 288H209" marker-end="url(#sq2)"/>
+<text class="ml" x="276" y="282" text-anchor="middle">2 seen · 1 new</text>
+<path class="msg" d="M207 320H754" marker-end="url(#sq2)"/>
+<text class="ml" x="481" y="314" text-anchor="middle">TriggerEvent sub_9:00Q5g…</text>
+<path class="msg" d="M207 352H342" marker-end="url(#sq2)"/>
+<text class="ml" x="276" y="346" text-anchor="middle">ZADD new id</text>
+<path class="msg" d="M207 384H72" marker-end="url(#sq2)"/>
+<text class="ml" x="139" y="378" text-anchor="middle">cursor · epoch 42</text>
+<path class="msg" d="M756 416H891" marker-end="url(#sq2)"/>
+<text class="ml" x="824" y="410" text-anchor="middle">consume · new run R1</text>
+<path class="msg" d="M893 440h22v14h-20" marker-end="url(#sq2)"/>
+<text class="ml" x="921" y="451">filter 91 &gt; 80 ✓</text>
+<path class="msg" d="M893 480H483" marker-end="url(#sq2)"/>
+<text class="ml" x="687" y="474" text-anchor="middle">step-tasks: send_message</text>
+<path class="msg" d="M481 512H1028" marker-end="url(#sq2)"/>
+<text class="ml" x="756" y="506" text-anchor="middle">send template</text>
+<path class="msg ret" d="M1030 544H483" marker-end="url(#sq2)"/>
+<text class="ml" x="756" y="538" text-anchor="middle">message id</text>
+<path class="msg" d="M481 576H891" marker-end="url(#sq2)"/>
+<text class="ml" x="687" y="570" text-anchor="middle">StepCompleted</text>
+<path class="msg" d="M893 600h22v14h-20" marker-end="url(#sq2)"/>
+<text class="ml" x="921" y="611">R1 succeeded</text>
+</svg>
+  </div>
+  <ul>
+    <li><b>Ownership by shard.</b> The poller holds the lease for shard 17, so it's the only process polling <code>sub_9</code>. The cursor write carries the lease epoch, so a stale owner's write is rejected.</li>
+    <li><b>Read behind, then drop what was seen.</b> The query starts 5 minutes behind the cursor to catch records that became visible late, and the seen-ID set removes the overlap.</li>
+    <li><b>The order makes crashes safe.</b> Events reach Kafka before the seen-ID write and the cursor move. A crash in between re-emits, and <code>run_by_event</code> drops the duplicate.</li>
+    <li><b>The filter runs in the orchestrator.</b> A decision is a pure check over the run context, with no queue and no worker. A run that fails the filter ends <code>filtered</code> and isn't billed.</li>
+  </ul>
+
+  <h3>3. Delayed and branching flow</h3>
+  <div class="flow"><span class="chip t">Shopify: New Order</span><span class="arrow">→</span><span class="chip d">Branch: total &gt; $500</span><span class="arrow">→</span><span class="chip d">Wait 3 days</span><span class="arrow">→</span><span class="chip a">Shopify: Get Order</span><span class="arrow">→</span><span class="chip d">Branch: delivered?</span><span class="arrow">→</span><span class="chip a">Gmail: Review request</span></div>
+<pre class="code"><code>steps:
+  by_value (branch)
+    path vip      [total &gt; 500]  → slack_sales
+    default                      → wait_3d (delay 72h)
+                                 → get_order (shopify)
+                                 → delivered (branch)
+                                      path yes [fulfillment == "delivered"] → send_review_request (gmail)
+                                      default                               → slack_ops</code></pre>
+  <div class="diagram wide">
+<svg class="arch seq" viewBox="0 0 1100 612" role="img">
+<defs><marker id="sq3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+<line class="life" x1="70" y1="56" x2="70" y2="604"/>
+<rect class="box b" x="4" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="70" y="41" text-anchor="middle">Kafka</text>
+<line class="life" x1="230" y1="56" x2="230" y2="604"/>
+<rect class="box d" x="164" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="230" y="41" text-anchor="middle">Orchestrator</text>
+<line class="life" x1="390" y1="56" x2="390" y2="604"/>
+<rect class="box s" x="324" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="390" y="41" text-anchor="middle">DynamoDB</text>
+<line class="life" x1="550" y1="56" x2="550" y2="604"/>
+<rect class="box t" x="484" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="550" y="41" text-anchor="middle">Timer Scanner</text>
+<line class="life" x1="710" y1="56" x2="710" y2="604"/>
+<rect class="box x" x="644" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="710" y="41" text-anchor="middle">Connector Runtime</text>
+<line class="life" x1="870" y1="56" x2="870" y2="604"/>
+<rect class="box ext" x="804" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="870" y="41" text-anchor="middle">Shopify</text>
+<line class="life" x1="1030" y1="56" x2="1030" y2="604"/>
+<rect class="box ext" x="964" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="1030" y="41" text-anchor="middle">Gmail</text>
+<path class="msg" d="M70 96H228" marker-end="url(#sq3)"/>
+<text class="ml" x="150" y="90" text-anchor="middle">StartRun R9 (total $120)</text>
+<path class="msg" d="M230 120h22v14h-20" marker-end="url(#sq3)"/>
+<text class="ml" x="258" y="131">branch by_value: &gt; $500? no → default</text>
+<path class="msg" d="M230 160H388" marker-end="url(#sq3)"/>
+<text class="ml" x="310" y="154" text-anchor="middle">outcome take(default) · timer · waiting</text>
+<rect class="snote" x="30" y="176" width="1040" height="26" rx="5"/>
+<text class="nt" x="550" y="193" text-anchor="middle">3 days later. R9 exists only as a runs row and a timer row; no memory, no queue.</text>
+<path class="msg" d="M550 228H72" marker-end="url(#sq3)"/>
+<text class="ml" x="310" y="222" text-anchor="middle">run-commands: TimerFired(R9)</text>
+<path class="msg" d="M70 260H228" marker-end="url(#sq3)"/>
+<text class="ml" x="150" y="254" text-anchor="middle">consume</text>
+<path class="msg" d="M230 292H388" marker-end="url(#sq3)"/>
+<text class="ml" x="310" y="286" text-anchor="middle">waiting on wait_3d ✓ → running</text>
+<path class="msg" d="M230 324H708" marker-end="url(#sq3)"/>
+<text class="ml" x="470" y="318" text-anchor="middle">step-tasks: get_order</text>
+<path class="msg" d="M710 356H868" marker-end="url(#sq3)"/>
+<text class="ml" x="790" y="350" text-anchor="middle">GET /orders/5001</text>
+<path class="msg ret" d="M870 388H712" marker-end="url(#sq3)"/>
+<text class="ml" x="790" y="382" text-anchor="middle">fulfillment: delivered</text>
+<path class="msg" d="M710 420H232" marker-end="url(#sq3)"/>
+<text class="ml" x="470" y="414" text-anchor="middle">StepCompleted</text>
+<path class="msg" d="M230 444h22v14h-20" marker-end="url(#sq3)"/>
+<text class="ml" x="258" y="455">branch delivered? yes → review</text>
+<path class="msg" d="M230 484H708" marker-end="url(#sq3)"/>
+<text class="ml" x="470" y="478" text-anchor="middle">step-tasks: send_review_request</text>
+<path class="msg" d="M710 516H1028" marker-end="url(#sq3)"/>
+<text class="ml" x="870" y="510" text-anchor="middle">send email</text>
+<path class="msg" d="M710 548H232" marker-end="url(#sq3)"/>
+<text class="ml" x="470" y="542" text-anchor="middle">StepCompleted</text>
+<path class="msg" d="M230 580H388" marker-end="url(#sq3)"/>
+<text class="ml" x="310" y="574" text-anchor="middle">outcome take(yes) · R9 succeeded</text>
+</svg>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Moment</th><th>Cursor</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Run starts</td><td><code>by_value</code></td><td>running</td></tr>
+      <tr><td>After the first branch</td><td><code>by_value.default.wait_3d</code></td><td>waiting, timer at T+72h</td></tr>
+      <tr><td>Timer fires</td><td><code>by_value.default.get_order</code></td><td>running</td></tr>
+      <tr><td>After the second branch</td><td><code>…delivered.yes.send_review_request</code></td><td>running</td></tr>
+      <tr><td>Done</td><td>end</td><td>succeeded</td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li><b>The decision is saved, not repeated.</b> The branch's outcome, <code>take(default)</code>, is recorded on its step row and the cursor sits on that path; <code>vip</code>'s steps have no rows and show as skipped. Waking up continues that path; it doesn't evaluate the first branch again.</li>
+    <li><b>Fresh data after a wait.</b> The second decision uses a <code>get_order</code> call made after the wait, because the trigger's data is 3 days old.</li>
+    <li><b>Waiting costs only storage.</b> Nothing holds the run while it sleeps. Any orchestrator instance that owns R9's partition when the timer fires can continue it.</li>
+    <li><b>Changes during the wait.</b> An edit publishes a new version, but R9 stays on its pinned version. An unpublish cancels the timer and marks the run <code>cancelled</code>. A duplicate <code>TimerFired</code> is ignored because R9 is no longer waiting on <code>wait_3d</code>.</li>
+  </ul>
+
+  <h3>4. Agentic action flow</h3>
+  <div class="flow"><span class="chip t">Gmail: New Support Email</span><span class="arrow">→</span><span class="chip a">Agent: Resolve Customer Request</span><span class="arrow">→</span><span class="chip d">Branch: needs_human?</span><span class="arrow">→</span><span class="chip a">Slack: Alert</span></div>
+  <div class="diagram wide">
+<svg class="arch seq" viewBox="0 0 1100 684" role="img">
+<defs><marker id="sq4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" style="fill:var(--muted)"/></marker></defs>
+<line class="life" x1="70" y1="56" x2="70" y2="676"/>
+<rect class="box d" x="4" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="70" y="41" text-anchor="middle">Orchestrator</text>
+<line class="life" x1="262" y1="56" x2="262" y2="676"/>
+<rect class="box x" x="196" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="262" y="41" text-anchor="middle">Agent Runtime</text>
+<line class="life" x1="454" y1="56" x2="454" y2="676"/>
+<rect class="box s" x="388" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="454" y="41" text-anchor="middle">agent_events</text>
+<line class="life" x1="646" y1="56" x2="646" y2="676"/>
+<rect class="box ext" x="580" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="646" y="41" text-anchor="middle">Model API</text>
+<line class="life" x1="838" y1="56" x2="838" y2="676"/>
+<rect class="box x" x="772" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="838" y="41" text-anchor="middle">Connector Runtime</text>
+<line class="life" x1="1030" y1="56" x2="1030" y2="676"/>
+<rect class="box ext" x="964" y="16" width="132" height="40" rx="7"/>
+<text class="ph" x="1030" y="41" text-anchor="middle">Providers</text>
+<path class="msg" d="M70 96H260" marker-end="url(#sq4)"/>
+<text class="ml" x="166" y="90" text-anchor="middle">step-tasks: resolve_request (agent)</text>
+<path class="msg ret" d="M262 128H72" marker-end="url(#sq4)"/>
+<text class="ml" x="166" y="122" text-anchor="middle">Accepted · step waits</text>
+<path class="msg" d="M262 160H452" marker-end="url(#sq4)"/>
+<text class="ml" x="358" y="154" text-anchor="middle">session: limits · tool specs</text>
+<path class="msg" d="M262 192H644" marker-end="url(#sq4)"/>
+<text class="ml" x="454" y="186" text-anchor="middle">turn 1: goal + transcript + tools</text>
+<path class="msg ret" d="M646 224H264" marker-end="url(#sq4)"/>
+<text class="ml" x="454" y="218" text-anchor="middle">tool_use find_customer</text>
+<path class="msg" d="M262 256H452" marker-end="url(#sq4)"/>
+<text class="ml" x="358" y="250" text-anchor="middle">save model_response</text>
+<path class="msg" d="M262 280h22v14h-20" marker-end="url(#sq4)"/>
+<text class="ml" x="290" y="291">policy gate: allowed</text>
+<path class="msg" d="M262 320H836" marker-end="url(#sq4)"/>
+<text class="ml" x="550" y="314" text-anchor="middle">step-tasks: find_customer</text>
+<path class="msg" d="M838 352H1028" marker-end="url(#sq4)"/>
+<text class="ml" x="934" y="346" text-anchor="middle">Salesforce query</text>
+<path class="msg" d="M838 384H264" marker-end="url(#sq4)"/>
+<text class="ml" x="550" y="378" text-anchor="middle">agent-commands: result</text>
+<rect class="snote" x="30" y="400" width="1040" height="26" rx="5"/>
+<text class="nt" x="550" y="417" text-anchor="middle">Turn 2: shopify__get_order → allowed → shipped 9 Oct, tracking TLV123</text>
+<rect class="snote" x="30" y="436" width="1040" height="26" rx="5"/>
+<text class="nt" x="550" y="453" text-anchor="middle">Turn 3: gmail__send_reply → gate fills to + threadId, maxCalls 1 ✓ → sent</text>
+<rect class="snote" x="30" y="472" width="1040" height="26" rx="5"/>
+<text class="nt" x="550" y="489" text-anchor="middle">Turn 4: model asks for a second send_reply → gate rejects (maxCalls) → policy_rejected to model</text>
+<path class="msg" d="M262 524H644" marker-end="url(#sq4)"/>
+<text class="ml" x="454" y="518" text-anchor="middle">turn 5: transcript</text>
+<path class="msg ret" d="M646 556H264" marker-end="url(#sq4)"/>
+<text class="ml" x="454" y="550" text-anchor="middle">finish {status: resolved, …}</text>
+<path class="msg" d="M262 580h22v14h-20" marker-end="url(#sq4)"/>
+<text class="ml" x="290" y="591">validate output schema</text>
+<path class="msg" d="M262 620H72" marker-end="url(#sq4)"/>
+<text class="ml" x="166" y="614" text-anchor="middle">run-commands: StepCompleted</text>
+<path class="msg" d="M70 644h22v14h-20" marker-end="url(#sq4)"/>
+<text class="ml" x="98" y="655">branch needs_human? → next step</text>
+</svg>
+  </div>
+  <ul>
+    <li><b>The model proposes; the platform decides.</b> Every call passes the policy gate, which checks the allowlist, arguments, per-tool limits and approvals before anything runs. The rejected second reply in turn 4 is an example.</li>
+    <li><b>Tools are ordinary actions.</b> Each allowed call runs through the same Connector Runtime pipeline as a normal step, with its own <code>step_executions</code> row, ledger claim and billed task.</li>
+    <li><b>Every turn is durable.</b> Model responses are saved before they're acted on. After a crash the session is rebuilt from <code>agent_events</code> and stored responses are replayed, never requested again.</li>
+    <li><b>It ends like any action.</b> The orchestrator dispatched one action and received one <code>StepCompleted</code>. The <code>finish</code> output is validated against the action's schema, and the next step branches on <code>{{steps.resolve_request.output.status}}</code>.</li>
+  </ul>
+
+  <h3>Boundaries these flows rely on</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>Component</th><th>Owns</th><th>Never does</th></tr></thead>
+    <tbody>
+      <tr><td>Webhook Ingress, Pollers, Timer Scanners</td><td>Turning outside changes and time into events with deterministic ids</td><td>Create runs or execute steps</td></tr>
+      <tr><td>Orchestrator</td><td>Run state, decisions, the cursor, timers</td><td>Call providers or touch credentials</td></tr>
+      <tr><td>Connector Runtime</td><td>Running connector code with credentials, rate limits and the ledger</td><td>Decide what runs next</td></tr>
+      <tr><td>Agent Runtime</td><td>Agent sessions: model turns, the policy gate, tool-call scheduling, and recording every model response before acting on it</td><td>Change run state, call providers directly, or trust a model's request on its own</td></tr>
+      <tr><td>Workflow Service</td><td>Definitions, versions, validation at publish, and activating triggers</td><td>Execute runs or call providers directly</td></tr>
+      <tr><td>Connection Service</td><td>Writing and refreshing credentials</td><td>Run workflow steps</td></tr>
+      <tr><td>Kafka</td><td>Ordering and ownership: one partition owner per run</td><td>Hold long-term state; DynamoDB is the source of truth</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="tradeoffs">
+  <h2>Decisions &amp; trade-offs</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Decision</th><th>Instead of</th><th>Why</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>At-least-once delivery with idempotency at every layer</td><td>True exactly-once</td><td>Exactly-once isn't possible across third-party APIs</td><td>Every component needs a deterministic id and a dedup check</td></tr>
+      <tr><td><b>Custom orchestrator</b> on Kafka and DynamoDB</td><td>Temporal or another workflow engine</td><td>Scales with Kafka partitions and DynamoDB capacity, with no engine throughput ceiling. Run state is the user-facing data model, so there's no second copy to keep in sync. Full control over fairness, quotas and per-tenant scheduling.</td><td>The platform builds and owns durable timers, retries, fencing, replay and the outbox. Needs crash and chaos testing before launch.</td></tr>
+      <tr><td>Kafka for events and commands, SQS for work queues</td><td>One queue technology for everything</td><td>Kafka partition ownership doubles as a per-run lock and events can be replayed; SQS gives per-task visibility timeouts and cheap per-connector queues</td><td>Two systems to operate; Kafka partition count limits orchestrator parallelism</td></tr>
+      <tr><td>DynamoDB for runs</td><td>Cassandra</td><td>Conditional writes at normal cost, multi-item transactions, fully managed</td><td>Tied to AWS; multi-region needs a home region per run</td></tr>
+      <tr><td>Immutable versions, runs pinned to one</td><td>Runs use the latest definition</td><td>Edits never break runs in progress</td><td>A long-sleeping run finishes on old logic</td></tr>
+      <tr><td>Tree-shaped definition</td><td>General graph</td><td>No cycles, simple reference scoping, easy to draw</td><td>No merging or parallel paths without a later migration</td></tr>
+      <tr><td>Webhooks where the provider supports them, polling as the fallback</td><td>Webhooks only</td><td>Push is faster and cheaper; polling still works for every provider</td><td>Two trigger mechanisms to build and run; polled triggers are slower and cost more</td></tr>
+      <tr><td>One sandboxed runtime for all connector code</td><td>Code embedded in each service</td><td>One place for credentials, egress and isolation</td><td>An extra hop per call</td></tr>
+      <tr><td>Envelope encryption with KMS</td><td>One Vault read per secret</td><td>Fast, limits damage to one account, deleting a key deletes an account's data</td><td>Key and cache management</td></tr>
+      <tr><td>Redis leases with fencing in Postgres</td><td>etcd</td><td>Already in the stack; correctness comes from fencing and dedup</td><td>Brief duplicate work when Redis fails over</td></tr>
+      <tr><td>Each agent turn and tool call is its own durable unit</td><td>One long agent call inside a worker</td><td>Survives crashes, can pause for approvals, and never repeats a recorded turn</td><td>More queue round trips per session and more rows per run</td></tr>
+      <tr><td>Agent permissions enforced by a policy gate</td><td>Instructions in the prompt</td><td>A misled model can still only make calls the gate allows, with arguments it accepts</td><td>Authors configure constraints per tool, and the gate is one more component to keep correct</td></tr>
+      <tr><td>Tools generated from connector manifests</td><td>Separate tool integrations</td><td>One definition per action, the same execution pipeline, ledger and billing</td><td>Manifest descriptions must also read well for models (<code>agentDescription</code>)</td></tr>
+      <tr><td>Two step types after the trigger: <code>action</code> (connector, code or agent executor) and <code>decision</code> (filter, branch, delay, wait)</td><td>A separate step type for each behavior</td><td>Matches the product's Trigger, Decision, Action model; one engine rule (actions are dispatched, decisions are evaluated); billing follows the type</td><td>Each decision kind is still handled differently inside the orchestrator</td></tr>
+      <tr><td>The agent loop in its own Agent Runtime, behind the action contract</td><td>The orchestrator driving agent turns</td><td>The orchestrator knows only actions, and all agent logic and safety live in one service</td><td>A second durable state machine to build; actions need asynchronous completion (<code>Accepted</code>, heartbeats)</td></tr>
+      <tr><td>Skipped steps derived from recorded branch outcomes</td><td>Writing a row for every step not taken</td><td>One write per decision; transactions stay small however large a branch is</td><td>The run view has to compute skipped steps from the definition</td></tr>
+      <tr><td>Queues per connector and per tier</td><td>One shared queue</td><td>Contains slow providers and noisy free-tier load</td><td>More queues to run and scale</td></tr>
+    </tbody>
+  </table></div>
+</section>
+</main>
+</div>
+</body>
+</html>
